@@ -1,9 +1,9 @@
 name: best-rq
 
 channels:
-  - conda-forge
   - pytorch
   - nvidia
+  - conda-forge
   - defaults
 
 dependencies:
