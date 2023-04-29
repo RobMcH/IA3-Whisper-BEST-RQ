@@ -1,6 +1,8 @@
+from typing import Iterable
+
 import torch
 from torch import nn
-from whisper.model import MultiHeadAttention
+from whisper.model import AudioEncoder, MultiHeadAttention, ResidualAttentionBlock
 
 
 class IA3MultiHeadAttention(MultiHeadAttention):
@@ -36,3 +38,28 @@ class IA3MultiHeadAttention(MultiHeadAttention):
         k = k + (self.key_weights * k).to(k.dtype) + self.key_biases.to(k.dtype)
         v = v + (self.value_weights * v).to(v.dtype) + self.value_biases.to(v.dtype)
         return super().qkv_attention(q, k, v, mask)
+
+
+class IA3ResidualAttentionBlock(ResidualAttentionBlock):
+    def __init__(
+        self, n_state: int, n_head: int, cross_attention: bool = False
+    ) -> None:
+        super().__init__(
+            n_state=n_state, n_head=n_head, cross_attention=cross_attention
+        )
+        self.attn = IA3MultiHeadAttention(n_state, n_head)
+        self.cross_attn = (
+            IA3MultiHeadAttention(n_state, n_head) if cross_attention else None
+        )
+
+
+class IA3AudioEncoder(AudioEncoder):
+    def __init__(
+        self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int
+    ) -> None:
+        super().__init__(
+            n_mels=n_mels, n_ctx=n_ctx, n_state=n_state, n_head=n_head, n_layer=n_layer
+        )
+        self.blocks: Iterable[IA3ResidualAttentionBlock] = nn.ModuleList(
+            [IA3ResidualAttentionBlock(n_state, n_head) for _ in range(n_layer)]
+        )
