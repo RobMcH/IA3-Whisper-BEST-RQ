@@ -1,5 +1,5 @@
 import io
-import os
+from pathlib import Path
 
 import torch
 from whisper import (
@@ -16,7 +16,7 @@ from best_rq.model import IA3Whisper
 def load_model(
     name: str,
     device: str | torch.device | None = None,
-    download_root: str | None = None,
+    download_root: Path | str | None = None,
     in_memory: bool = False,
 ) -> IA3Whisper:
     """
@@ -26,9 +26,9 @@ def load_model(
     name : str
         one of the official model names listed by `whisper.available_models()`, or
         path to a model checkpoint containing the model dimensions and the model state_dict.
-    device : Union[str, torch.device]
+    device : str | torch.device | None
         the PyTorch device to put the model into
-    download_root: str
+    download_root: Path | str | None
         path to download the model files; by default, it uses "~/.cache/whisper"
     in_memory: bool
         whether to preload the model weights into host memory
@@ -41,13 +41,13 @@ def load_model(
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     if download_root is None:
-        default = os.path.join(os.path.expanduser("~"), ".cache")
-        download_root = os.path.join(os.getenv("XDG_CACHE_HOME", default), "whisper")
+        default = Path("~").expanduser() / ".cache"
+        download_root = default / "whisper"
 
     if name in _MODELS:
         checkpoint_file = _download(_MODELS[name], download_root, in_memory)
         alignment_heads = _ALIGNMENT_HEADS[name]
-    elif os.path.isfile(name):
+    elif Path(name).is_file():
         checkpoint_file = open(name, "rb").read() if in_memory else name
         alignment_heads = None
     else:
