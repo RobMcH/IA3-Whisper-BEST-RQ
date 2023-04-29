@@ -1,5 +1,3 @@
-from typing import Tuple
-
 import torch
 
 
@@ -66,13 +64,11 @@ class BestRQMasking:
         )  # Shape: (batch_size, num_codebooks, seq_length)
         return targets
 
-    def get_masked_features(
-        self, in_feats: torch.Tensor
-    ) -> Tuple[torch.Tensor, torch.Tensor]:
+    def get_masked_features(self, in_feats: torch.Tensor) -> dict[str, torch.Tensor]:
         """Computes the mask and masked features given some input features.
 
         :param in_feats: A tensor holding the unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
-        :return:
+        :return: A dictionary holding:
             * masked_features: Features with masked parts replaced by randomly sampled features.
              Shape: (batch_size, seq_length, emb_dim)
             * mask: The mask used to replace the features. Shape: (batch_size, seq_length)
@@ -83,4 +79,20 @@ class BestRQMasking:
         in_feats[mask] = torch.normal(
             mean=0, std=0.1, size=(int(mask.sum().item()), in_feats.shape[-1])
         )
-        return in_feats, mask
+        return {"masked_features": in_feats, "mask": mask}
+
+    def get_targets_and_features(
+        self, in_feats: torch.Tensor
+    ) -> dict[str, torch.Tensor]:
+        """Transforms the given features to obtain targets and the masked features using Best-RQ.
+
+        :param in_feats: A tensor holding the unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
+        :return: A dictionary holding:
+            * targets: A tensor holding the computed targets. Shape: (batch_size, num_codebooks, seq_length)
+            * masked_features: Features with masked parts replaced by randomly sampled features.
+             Shape: (batch_size, seq_length, emb_dim)
+            * mask: The mask used to replace the features. Shape: (batch_size, seq_length)
+        """
+        targets = self.get_targets(in_feats)
+        mask_and_features = self.get_masked_features(in_feats)
+        return {"targets": targets, **mask_and_features}
