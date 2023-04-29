@@ -1,0 +1,9 @@
+name: best-rq
+
+channels:
+  - conda-forge
+  - defaults
+
+dependencies:
+  - python=3.10
+  - pre-commit=3.2.2
