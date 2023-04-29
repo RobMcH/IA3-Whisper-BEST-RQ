@@ -50,7 +50,9 @@ class BestRQMasking:
         proj_feats = proj_feats[:, None, :].expand(
             -1, num_codebooks, *proj_feats.shape[1:]
         )  # Shape: (batch_size, num_codebooks, seq_length, codebook_dim)
-        codebooks = self.codebooks[None, :].expand(batch_size, *self.codebooks.shape)
+        codebooks = self.codebooks[None, :].expand(
+            batch_size, *self.codebooks.shape
+        )  # Shape: (batch_size, num_codebooks, num_targets, codebook_dim)
         targets = torch.argmin(
             torch.linalg.norm(
                 codebooks[:, :, :, None] - proj_feats[:, :, None, :], dim=-1
