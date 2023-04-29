@@ -1,3 +1,5 @@
+from typing import Tuple
+
 import torch
 
 
@@ -8,6 +10,7 @@ class BestRQMasking:
         num_targets: int,
         emb_dim: int,
         codebook_dim: int,
+        masking_prob: float,
         device: str = "cpu",
     ) -> None:
         """Implements the Best-RQ masking strategy. Allows for both original Best-RQ and Google USM-style.
@@ -17,6 +20,7 @@ class BestRQMasking:
         :param num_targets: The number of quantization targets per codebook.
         :param emb_dim: The dimension of the speech input features.
         :param codebook_dim: The dimension of the codebook vectors.
+        :param masking_prob: The probability of masking an input.
         :param device: The device to initialize parameters on. Defaults to "CPU".
         """
         self.projection = torch.empty(
@@ -33,6 +37,7 @@ class BestRQMasking:
         self.codebooks /= torch.linalg.vector_norm(
             self.codebooks, ord=2, dim=-1, keepdim=True
         )  # Shape: (num_codebooks, num_targets, codebook_dim)
+        self.masking_prob = masking_prob
 
     def get_targets(self, in_feats: torch.Tensor) -> torch.Tensor:
         """Computes the Best-RQ targets for a given tensor of unmasked speech input features.
@@ -60,3 +65,22 @@ class BestRQMasking:
             dim=-2,
         )  # Shape: (batch_size, num_codebooks, seq_length)
         return targets
+
+    def get_masked_features(
+        self, in_feats: torch.Tensor
+    ) -> Tuple[torch.Tensor, torch.Tensor]:
+        """Computes the mask and masked features given some input features.
+
+        :param in_feats: A tensor holding the unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
+        :return:
+            * masked_features: Features with masked parts replaced by randomly sampled features.
+             Shape: (batch_size, seq_length, emb_dim)
+            * mask: The mask used to replace the features. Shape: (batch_size, seq_length)
+        """
+        mask = (
+            torch.rand(in_feats.shape[:-1]) < self.masking_prob
+        )  # Shape: (batch_size, seq_length)
+        in_feats[mask] = torch.normal(
+            mean=0, std=0.1, size=(int(mask.sum().item()), in_feats.shape[-1])
+        )
+        return in_feats, mask
