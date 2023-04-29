@@ -67,7 +67,7 @@ class BestRQMasking:
 
         :param in_feats: A tensor holding the unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
         :return: A dictionary holding:
-            * masked_features: Features with masked parts replaced by randomly sampled features.
+            * in_feats: Features with masked parts replaced by randomly sampled features.
              Shape: (batch_size, seq_length, emb_dim)
             * mask: The mask used to replace the features. Shape: (batch_size, seq_length)
         """
@@ -77,20 +77,23 @@ class BestRQMasking:
         in_feats[mask] = torch.normal(
             mean=0, std=0.1, size=(int(mask.sum().item()), in_feats.shape[-1])
         )
-        return {"masked_features": in_feats, "mask": mask}
+        return {"in_feats": in_feats, "mask": mask}
 
     def get_targets_and_features(
-        self, in_feats: torch.Tensor
+        self, data: dict[str, torch.Tensor]
     ) -> dict[str, torch.Tensor]:
         """Transforms the given features to obtain targets and the masked features using Best-RQ.
 
-        :param in_feats: A tensor holding the unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
+        Modifies given data ('in_feats') in-place.
+
+        :param data: A dictionary holding the input data. Must contain a tensor with key "in_feats" with the
+         unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
         :return: A dictionary holding:
             * targets: A tensor holding the computed targets. Shape: (batch_size, num_codebooks, seq_length)
-            * masked_features: Features with masked parts replaced by randomly sampled features.
+            * in_feats: Features with masked parts replaced by randomly sampled features.
              Shape: (batch_size, seq_length, emb_dim)
             * mask: The mask used to replace the features. Shape: (batch_size, seq_length)
         """
-        targets = self.get_targets(in_feats)
-        mask_and_features = self.get_masked_features(in_feats)
-        return {"targets": targets, **mask_and_features}
+        data["targets"] = self.get_targets(data["in_feats"])
+        data.update(self.get_masked_features(data["in_feats"]))
+        return data
