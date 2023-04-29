@@ -23,7 +23,7 @@ repos:
   rev: 'v0.0.263'
   hooks:
     - id: ruff
-      args: ["--line-length", "120"]
+      args: ["--line-length", "120", "--fix"]
 
 - repo: https://github.com/pycqa/isort
   rev: 5.12.0
