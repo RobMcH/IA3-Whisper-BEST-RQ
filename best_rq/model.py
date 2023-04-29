@@ -2,7 +2,13 @@ from typing import Iterable
 
 import torch
 from torch import nn
-from whisper.model import AudioEncoder, MultiHeadAttention, ResidualAttentionBlock
+from whisper.model import (
+    AudioEncoder,
+    ModelDimensions,
+    MultiHeadAttention,
+    ResidualAttentionBlock,
+    Whisper,
+)
 
 
 class IA3MultiHeadAttention(MultiHeadAttention):
@@ -44,6 +50,12 @@ class IA3ResidualAttentionBlock(ResidualAttentionBlock):
     def __init__(
         self, n_state: int, n_head: int, cross_attention: bool = False
     ) -> None:
+        """Initializes an (IA)^3-adapted ResidualAttentionBlock.
+
+        :param n_state: The hidden size of the layers.
+        :param n_head: The number of attention heads.
+        :param cross_attention: Whether to use cross attention.
+        """
         super().__init__(
             n_state=n_state, n_head=n_head, cross_attention=cross_attention
         )
@@ -57,9 +69,33 @@ class IA3AudioEncoder(AudioEncoder):
     def __init__(
         self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int
     ) -> None:
+        """Initializes an (IA)^3-adapted AudioEncoder implementation.
+
+        :param n_mels: The number of mel spectrograms.
+        :param n_ctx: The context size.
+        :param n_state: The hidden size of the layers.
+        :param n_head: The number of attention heads.
+        :param n_layer: The number of ResidualAttentionBlocks layers.
+        """
         super().__init__(
             n_mels=n_mels, n_ctx=n_ctx, n_state=n_state, n_head=n_head, n_layer=n_layer
         )
         self.blocks: Iterable[IA3ResidualAttentionBlock] = nn.ModuleList(
             [IA3ResidualAttentionBlock(n_state, n_head) for _ in range(n_layer)]
+        )
+
+
+class IA3Whisper(Whisper):
+    def __init__(self, dims: ModelDimensions) -> None:
+        """Initializes an (IA)^3-adapted Whisper implementation.
+
+        :param dims: A container holding the model hyperparameters.
+        """
+        super().__init__(dims=dims)
+        self.encoder = IA3AudioEncoder(
+            self.dims.n_mels,
+            self.dims.n_audio_ctx,
+            self.dims.n_audio_state,
+            self.dims.n_audio_head,
+            self.dims.n_audio_layer,
         )
