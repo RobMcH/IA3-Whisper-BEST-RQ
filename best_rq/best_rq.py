@@ -40,14 +40,21 @@ class BestRQMasking:
         :param in_feats: A tensor holding the unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
         :return: A tensor holding the computed targets. Shape: (batch_size, num_codebooks, seq_length)
         """
-
+        batch_size, num_codebooks = in_feats.shape[0], self.codebooks.shape[0]
         proj_feats = (
             in_feats @ self.projection
         )  # Shape: (batch_size, seq_length, codebook_dim)
         proj_feats /= torch.linalg.vector_norm(
             proj_feats, ord=2, dim=-1, keepdim=True
         )  # Shape: (batch_size, seq_length, codebook_dim)
+        proj_feats = proj_feats[:, None, :].expand(
+            -1, num_codebooks, *proj_feats.shape[1:]
+        )  # Shape: (batch_size, num_codebooks, seq_length, codebook_dim)
+        codebooks = self.codebooks[None, :].expand(batch_size, *self.codebooks.shape)
         targets = torch.argmin(
-            self.codebooks[None, :] - proj_feats[:, None, :], dim=-1
+            torch.linalg.norm(
+                codebooks[:, :, :, None] - proj_feats[:, :, None, :], dim=-1
+            ),
+            dim=-2,
         )  # Shape: (batch_size, num_codebooks, seq_length)
         return targets
