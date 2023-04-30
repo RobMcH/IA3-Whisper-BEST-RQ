@@ -40,7 +40,6 @@ def get_dataloader(
     split: str, batch_size: int, shuffle: bool, device: str = "cpu"
 ) -> torch.utils.data.DataLoader:
     """Construct a dataloader for the librispeech dataset.
-
     :param split: The data split to use.
     :param batch_size: The size of the batches the sampler fetches.
     :param shuffle: Whether to shuffle the data.

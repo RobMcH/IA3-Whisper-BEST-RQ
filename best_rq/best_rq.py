@@ -57,7 +57,9 @@ class BestRQMasking:
             batch_size, *self.codebooks.shape
         )  # Shape: (batch_size, num_codebooks, num_targets, codebook_dim)
         targets = torch.argmin(
-            torch.linalg.norm(codebooks[..., None] - proj_feats[:, :, None], dim=-1),
+            torch.linalg.norm(
+                codebooks[:, :, :, None] - proj_feats[:, :, None], dim=-1
+            ),
             dim=-2,
         )  # Shape: (batch_size, num_codebooks, seq_length)
         return targets
