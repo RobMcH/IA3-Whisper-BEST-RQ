@@ -101,3 +101,15 @@ class IA3Whisper(Whisper):
             self.dims.n_audio_head,
             self.dims.n_audio_layer,
         )
+
+    def freeze(self) -> None:
+        """Freezes all model parameters."""
+        self.requires_grad_(False)
+
+    def unfreeze_encoder_ia3(self) -> None:
+        """Unfreezes the added IA3 parameters in the encoder."""
+        for block in self.encoder.blocks:
+            attn = block.attn
+            for name, child in attn.named_parameters():
+                if name.endswith("_weights") or name.endswith("_biases"):
+                    child.requires_grad_(True)
