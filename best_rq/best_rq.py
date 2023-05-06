@@ -6,6 +6,8 @@ import faiss
 import faiss.contrib.torch_utils
 import torch
 
+WHISPER_FRAME_LENGTH = 25
+
 
 class BestRQMasking:
     def __init__(
@@ -14,6 +16,7 @@ class BestRQMasking:
         emb_dim: int,
         codebook_dim: int,
         masking_prob: float,
+        masking_length: int = 400,
         device: str = "cpu",
         seed: int = 0,
         metric: int = faiss.METRIC_INNER_PRODUCT,
@@ -24,6 +27,7 @@ class BestRQMasking:
         :param emb_dim: The dimension of the speech input features.
         :param codebook_dim: The dimension of the codebook vectors.
         :param masking_prob: The probability of masking an input.
+        :param masking_length: The length of the masks in ms.
         :param device: The device to initialize parameters on. Defaults to "CPU".
         :param seed: The seed used to initialize the RNG.
         :param metric: The metric type to use for the inner product search. Defaults to inner product search, which
@@ -51,6 +55,8 @@ class BestRQMasking:
         self.res = faiss.StandardGpuResources()
         self.res.setDefaultNullStreamAllDevices()
         self.masking_prob = masking_prob
+        # Discrete masking length in number of frames to mask.
+        self.masking_length = masking_length // WHISPER_FRAME_LENGTH
         self.metric = metric
 
     def get_targets(self, in_feats: torch.Tensor) -> torch.Tensor:
@@ -82,6 +88,19 @@ class BestRQMasking:
         mask = (
             torch.rand(in_feats_shape[:-1], generator=self.mask_rng) < self.masking_prob
         )  # Shape: (batch_size, seq_length)
+        # Turn individual samples into continuous masks. Get (batch_index, seq_index) pairs of individual samples.
+        batch_span_indices, seq_span_indices = torch.where(mask)
+        # Repeat batch indices self.masking_length times to match new sequence span indices.
+        batch_span_indices = batch_span_indices.repeat_interleave(self.masking_length)
+        # Repeat sequence indices self.masking_length times and turn into increasing indices (+0..self.masking_length-1)
+        seq_span_indices = seq_span_indices.repeat_interleave(
+            self.masking_length
+        ) + torch.arange(self.masking_length).repeat(int(mask.sum().item()))
+        # Remove any possibly invalid indices, i.e., clip at the end of the sequence.
+        batch_span_indices = batch_span_indices[seq_span_indices < mask.shape[1]]
+        seq_span_indices = seq_span_indices[seq_span_indices < mask.shape[1]]
+        # Update mask with the sampled spans.
+        mask[batch_span_indices, seq_span_indices] = True
         return mask
 
     def apply_mask(
