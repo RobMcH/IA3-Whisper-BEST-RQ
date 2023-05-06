@@ -27,6 +27,7 @@ class BestRQMasking:
         :param seed: The seed used to initialize the RNG.
         """
         self.rng = torch.Generator(device=device).manual_seed(seed)
+        self.mask_rng = torch.Generator(device="cpu").manual_seed(seed)
         self.projection = torch.empty(
             emb_dim, codebook_dim, requires_grad=False, device=device
         )  # Shape: (emb_dim, codebook_dim)
@@ -80,7 +81,7 @@ class BestRQMasking:
             * mask: The mask used to replace the features. Shape: (batch_size, seq_length)
         """
         mask = (
-            torch.rand(in_feats.shape[:-1], generator=self.rng) < self.masking_prob
+            torch.rand(in_feats.shape[:-1], generator=self.mask_rng) < self.masking_prob
         )  # Shape: (batch_size, seq_length)
         in_feats[mask] = torch.normal(
             mean=0,
