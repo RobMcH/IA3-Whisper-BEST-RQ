@@ -16,6 +16,7 @@ class BestRQMasking:
         masking_prob: float,
         device: str = "cpu",
         seed: int = 0,
+        metric: int = faiss.METRIC_INNER_PRODUCT,
     ) -> None:
         """Implements the Best-RQ masking strategy. Allows for both original Best-RQ and Google USM-style.
 
@@ -25,6 +26,9 @@ class BestRQMasking:
         :param masking_prob: The probability of masking an input.
         :param device: The device to initialize parameters on. Defaults to "CPU".
         :param seed: The seed used to initialize the RNG.
+        :param metric: The metric type to use for the inner product search. Defaults to inner product search, which
+         is equivalent to cosine similarity as inputs are normalized.
+          C.f. https://github.com/facebookresearch/faiss/blob/main/faiss/MetricType.h.
         """
         self.rng = torch.Generator(device=device).manual_seed(seed)
         self.mask_rng = torch.Generator(device="cpu").manual_seed(seed)
@@ -47,6 +51,7 @@ class BestRQMasking:
         self.res = faiss.StandardGpuResources()
         self.res.setDefaultNullStreamAllDevices()
         self.masking_prob = masking_prob
+        self.metric = metric
 
     def get_targets(self, in_feats: torch.Tensor) -> torch.Tensor:
         """Computes the Best-RQ targets for a given tensor of unmasked speech input features.
@@ -66,6 +71,7 @@ class BestRQMasking:
             xq=proj_feats.reshape(batch_size * seq_length, -1),
             xb=self.codebooks,
             k=1,
+            metric=self.metric,
         )  # Shape: (batch_size * seq_length)
         return targets.reshape(
             batch_size, seq_length
