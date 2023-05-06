@@ -3,7 +3,6 @@ from __future__ import annotations
 from typing import Iterable
 
 import torch
-from log import get_logger
 from torch import nn
 from whisper.model import (
     AudioEncoder,
@@ -12,6 +11,8 @@ from whisper.model import (
     ResidualAttentionBlock,
     Whisper,
 )
+
+from best_rq.log import get_logger
 
 logger = get_logger(__name__)
 
@@ -128,9 +129,9 @@ class IA3Whisper(Whisper):
 
     def unfreeze_encoder_ia3(self) -> None:
         """Unfreezes the added IA3 parameters in the encoder."""
-        for block in self.encoder.blocks:
+        for i, block in enumerate(self.encoder.blocks):
             for layer in (block.attn, block.mlp):
                 for name, child in layer.named_parameters():  # type: ignore
                     if name.endswith("_weights") or name.endswith("_biases"):
                         child.requires_grad_(True)
-                        logger.debug("Unfreezing layer %s", name)
+                        logger.debug("Unfreezing layer %s in encoder block %d", name, i)
