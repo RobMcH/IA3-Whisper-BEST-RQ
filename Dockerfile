@@ -19,6 +19,7 @@ RUN --mount=type=cache,target=/root/.cache/mamba eval "$(micromamba shell hook -
 
 
 FROM nvidia/cuda:11.3.0-cudnn8-runtime-ubuntu20.04
+USER root
 SHELL ["/bin/bash", "-c"]
 
 RUN --mount=type=cache,target=/root/.cache/apt apt-get update \
@@ -26,13 +27,13 @@ RUN --mount=type=cache,target=/root/.cache/apt apt-get update \
     && rm -rf /var/lib/apt/lists/*
 
 COPY --from=mamba /bin/micromamba /bin/micromamba
-COPY --from=mamba /opt/conda/envs/best-rq/ /opt/conda/envs/best-rq/
+COPY --from=mamba /opt/conda/envs/best-rq/ /root/micromamba/envs/best-rq/
 COPY --from=mamba /tmp/ /tmp/
 
 COPY . .
 
-ENV PATH=/opt/conda/envs/best-rq/bin/:$PATH
+ENV PATH=/root/micromamba/envs/best-rq/bin/:$PATH
+ENV MAMBA_ROOT_PREFIX=/root/micromamba/
 
-RUN export MAMBA_ROOT_PREFIX=/opt/conda/ \
-    && eval "$(micromamba shell hook --shell=bash)" \
-    && micromamba activate best-rq
+RUN micromamba shell init --shell=bash \
+    && echo "micromamba activate best-rq" >> /root/.bashrc
