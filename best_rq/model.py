@@ -3,6 +3,7 @@ from __future__ import annotations
 from typing import Iterable
 
 import torch
+from log import get_logger
 from torch import nn
 from whisper.model import (
     AudioEncoder,
@@ -11,6 +12,8 @@ from whisper.model import (
     ResidualAttentionBlock,
     Whisper,
 )
+
+logger = get_logger(__name__)
 
 
 class IA3MultiHeadAttention(MultiHeadAttention):
@@ -113,3 +116,4 @@ class IA3Whisper(Whisper):
             for name, child in attn.named_parameters():
                 if name.endswith("_weights") or name.endswith("_biases"):
                     child.requires_grad_(True)
+                    logger.debug("Unfreezing layer %s", name)
