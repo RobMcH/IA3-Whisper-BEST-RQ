@@ -25,10 +25,12 @@ RUN --mount=type=cache,target=/root/.cache/apt apt-get update \
     && DEBIAN_FRONTEND=noninteractive apt-get install -y git ffmpeg curl \
     && rm -rf /var/lib/apt/lists/*
 
-COPY . .
 COPY --from=mamba /bin/micromamba /bin/micromamba
 COPY --from=mamba /opt/conda/envs/best-rq/ /opt/conda/envs/best-rq/
 COPY --from=mamba /tmp/ /tmp/
+
+COPY . .
+
 ENV PATH=/opt/conda/envs/best-rq/bin/:$PATH
 
 RUN export MAMBA_ROOT_PREFIX=/opt/conda/ \
