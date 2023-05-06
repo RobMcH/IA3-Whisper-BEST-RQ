@@ -1,2 +1,1 @@
 openai-whisper @ git+https://github.com/openai/whisper@v20230314
-pysoundfile==0.12.1
