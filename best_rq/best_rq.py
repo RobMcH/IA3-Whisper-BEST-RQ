@@ -1,10 +1,15 @@
+from __future__ import annotations
+
+import faiss
+
+# Enables PyTorch CUDA inputs/outputs for FAISS.
+import faiss.contrib.torch_utils
 import torch
 
 
 class BestRQMasking:
     def __init__(
         self,
-        num_codebooks: int,
         num_targets: int,
         emb_dim: int,
         codebook_dim: int,
@@ -13,8 +18,6 @@ class BestRQMasking:
     ) -> None:
         """Implements the Best-RQ masking strategy. Allows for both original Best-RQ and Google USM-style.
 
-        :param num_codebooks: The number of codebooks to use for a multi-softmax pre-training (USM-style). Set to 1 for
-         original Best-RQ behaviour.
         :param num_targets: The number of quantization targets per codebook.
         :param emb_dim: The dimension of the speech input features.
         :param codebook_dim: The dimension of the codebook vectors.
@@ -28,13 +31,15 @@ class BestRQMasking:
         self.codebooks = torch.normal(
             mean=0,
             std=1,
-            size=(num_codebooks, num_targets, codebook_dim),
+            size=(num_targets, codebook_dim),
             requires_grad=False,
             device=device,
-        )  # Shape: (num_codebooks, num_targets, codebook_dim)
+        )  # Shape: (num_targets, codebook_dim)
         self.codebooks /= torch.linalg.vector_norm(
             self.codebooks, ord=2, dim=-1, keepdim=True
-        )  # Shape: (num_codebooks, num_targets, codebook_dim)
+        )  # Shape: (num_targets, codebook_dim)
+        self.res = faiss.StandardGpuResources()
+        self.res.setDefaultNullStreamAllDevices()
         self.masking_prob = masking_prob
 
     def get_targets(self, in_feats: torch.Tensor) -> torch.Tensor:
@@ -43,26 +48,20 @@ class BestRQMasking:
         :param in_feats: A tensor holding the unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
         :return: A tensor holding the computed targets. Shape: (batch_size, num_codebooks, seq_length)
         """
-        batch_size, num_codebooks = in_feats.shape[0], self.codebooks.shape[0]
+        batch_size, seq_length = in_feats.shape[0], in_feats.shape[1]
         proj_feats = (
             in_feats @ self.projection
         )  # Shape: (batch_size, seq_length, codebook_dim)
         proj_feats /= torch.linalg.vector_norm(
             proj_feats, ord=2, dim=-1, keepdim=True
         )  # Shape: (batch_size, seq_length, codebook_dim)
-        proj_feats = proj_feats[:, None].expand(
-            -1, num_codebooks, *proj_feats.shape[1:]
-        )  # Shape: (batch_size, num_codebooks, seq_length, codebook_dim)
-        codebooks = self.codebooks[None].expand(
-            batch_size, *self.codebooks.shape
-        )  # Shape: (batch_size, num_codebooks, num_targets, codebook_dim)
-        targets = torch.argmin(
-            torch.linalg.norm(
-                codebooks[:, :, :, None] - proj_feats[:, :, None], dim=-1
-            ),
-            dim=-2,
-        )  # Shape: (batch_size, num_codebooks, seq_length)
-        return targets
+        targets = faiss.knn_gpu(
+            self.res,
+            xq=proj_feats.reshape(batch_size * seq_length, -1),
+            xb=self.codebooks,
+            k=1,
+        )[-1]
+        return targets.reshape(batch_size, seq_length)
 
     def get_masked_features(self, in_feats: torch.Tensor) -> dict[str, torch.Tensor]:
         """Computes the mask and masked features given some input features.
