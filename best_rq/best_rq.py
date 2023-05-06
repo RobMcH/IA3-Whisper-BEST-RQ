@@ -34,13 +34,18 @@ class BestRQMasking:
          is equivalent to cosine similarity as inputs are normalized.
           C.f. https://github.com/facebookresearch/faiss/blob/main/faiss/MetricType.h.
         """
+        # Set up class-internal RNGs for better reproducibility.
         self.rng = torch.Generator(device=device).manual_seed(seed)
         self.mask_rng = torch.Generator(device="cpu").manual_seed(seed)
+
+        # Set up random projection matrix.
         self.projection = torch.empty(
             emb_dim, codebook_dim, requires_grad=False, device=device
         )  # Shape: (emb_dim, codebook_dim)
-        # nn.init does not support custom RNGs.
+        # nn.init does not support custom RNGs, use default.
         torch.nn.init.xavier_normal_(self.projection)
+
+        # Set up codebooks.
         self.codebooks = torch.normal(
             mean=0,
             std=1,
@@ -52,12 +57,36 @@ class BestRQMasking:
         self.codebooks /= torch.linalg.vector_norm(
             self.codebooks, ord=2, dim=-1, keepdim=True
         )  # Shape: (num_targets, codebook_dim)
+
+        # Initialize (GPU) resources for FAISS.
         self.res = faiss.StandardGpuResources()
         self.res.setDefaultNullStreamAllDevices()
+        self.metric = metric
+
+        # Masking hyper-parameters.
         self.masking_prob = masking_prob
         # Discrete masking length in number of frames to mask.
         self.masking_length = masking_length // WHISPER_FRAME_LENGTH
-        self.metric = metric
+
+    def get_targets_and_features(
+        self, data: dict[str, torch.Tensor]
+    ) -> dict[str, torch.Tensor]:
+        """Transforms the given features to obtain targets and the masked features using Best-RQ.
+
+        Modifies given data ('in_feats') in-place.
+
+        :param data: A dictionary holding the input data. Must contain a tensor with key "in_feats" with the
+         unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
+        :return: A dictionary holding:
+            * targets: A tensor holding the computed targets. Shape: (batch_size, seq_length)
+            * in_feats: Features with masked parts replaced by randomly sampled features.
+             Shape: (batch_size, seq_length, emb_dim)
+            * mask: The mask used to replace the features. Shape: (batch_size, seq_length)
+        """
+        mask = self.get_mask(data["in_feats"].shape)
+        data["targets"] = self.get_targets(data["in_feats"][mask])
+        data.update(self.apply_mask(data["in_feats"], mask))
+        return data
 
     def get_targets(self, in_feats: torch.Tensor) -> torch.Tensor:
         """Computes the Best-RQ targets for a given tensor of unmasked speech input features.
@@ -122,23 +151,3 @@ class BestRQMasking:
             generator=self.rng,
         )
         return {"in_feats": in_feats, "mask": mask}
-
-    def get_targets_and_features(
-        self, data: dict[str, torch.Tensor]
-    ) -> dict[str, torch.Tensor]:
-        """Transforms the given features to obtain targets and the masked features using Best-RQ.
-
-        Modifies given data ('in_feats') in-place.
-
-        :param data: A dictionary holding the input data. Must contain a tensor with key "in_feats" with the
-         unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
-        :return: A dictionary holding:
-            * targets: A tensor holding the computed targets. Shape: (batch_size, seq_length)
-            * in_feats: Features with masked parts replaced by randomly sampled features.
-             Shape: (batch_size, seq_length, emb_dim)
-            * mask: The mask used to replace the features. Shape: (batch_size, seq_length)
-        """
-        mask = self.get_mask(data["in_feats"].shape)
-        data["targets"] = self.get_targets(data["in_feats"][mask])
-        data.update(self.apply_mask(data["in_feats"], mask))
-        return data
