@@ -18,7 +18,7 @@ RUN --mount=type=cache,target=/root/.cache/mamba eval "$(micromamba shell hook -
     && micromamba create -y --file environment.yaml
 
 
-FROM nvidia/cuda:11.8.0-cudnn8-runtime-ubuntu20.04
+FROM nvidia/cuda:11.3.0-cudnn8-runtime-ubuntu20.04
 SHELL ["/bin/bash", "-c"]
 
 RUN --mount=type=cache,target=/root/.cache/apt apt-get update \
