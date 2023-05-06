@@ -55,14 +55,12 @@ class BestRQMasking:
         proj_feats /= torch.linalg.vector_norm(
             proj_feats, ord=2, dim=-1, keepdim=True
         )  # Shape: (batch_size, seq_length, codebook_dim)
-        targets = faiss.knn_gpu(
+        _, targets = faiss.knn_gpu(
             self.res,
             xq=proj_feats.reshape(batch_size * seq_length, -1),
             xb=self.codebooks,
             k=1,
-        )[
-            -1
-        ]  # Shape: (batch_size * seq_length)
+        )  # Shape: (batch_size * seq_length)
         return targets.reshape(
             batch_size, seq_length
         )  # Shape: (batch_size, seq_length).
