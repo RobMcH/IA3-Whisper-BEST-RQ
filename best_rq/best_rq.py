@@ -15,6 +15,7 @@ class BestRQMasking:
         codebook_dim: int,
         masking_prob: float,
         device: str = "cpu",
+        seed: int = 0,
     ) -> None:
         """Implements the Best-RQ masking strategy. Allows for both original Best-RQ and Google USM-style.
 
@@ -23,10 +24,13 @@ class BestRQMasking:
         :param codebook_dim: The dimension of the codebook vectors.
         :param masking_prob: The probability of masking an input.
         :param device: The device to initialize parameters on. Defaults to "CPU".
+        :param seed: The seed used to initialize the RNG.
         """
+        self.rng = torch.Generator(device=device).manual_seed(seed)
         self.projection = torch.empty(
             emb_dim, codebook_dim, requires_grad=False, device=device
         )  # Shape: (emb_dim, codebook_dim)
+        # nn.init does not support custom RNGs.
         torch.nn.init.xavier_normal_(self.projection)
         self.codebooks = torch.normal(
             mean=0,
@@ -34,6 +38,7 @@ class BestRQMasking:
             size=(num_targets, codebook_dim),
             requires_grad=False,
             device=device,
+            generator=self.rng,
         )  # Shape: (num_targets, codebook_dim)
         self.codebooks /= torch.linalg.vector_norm(
             self.codebooks, ord=2, dim=-1, keepdim=True
@@ -75,13 +80,14 @@ class BestRQMasking:
             * mask: The mask used to replace the features. Shape: (batch_size, seq_length)
         """
         mask = (
-            torch.rand(in_feats.shape[:-1]) < self.masking_prob
+            torch.rand(in_feats.shape[:-1], generator=self.rng) < self.masking_prob
         )  # Shape: (batch_size, seq_length)
         in_feats[mask] = torch.normal(
             mean=0,
             std=0.1,
             size=(int(mask.sum().item()), in_feats.shape[-1]),
             device=in_feats.device,
+            generator=self.rng,
         )
         return {"in_feats": in_feats, "mask": mask}
 
