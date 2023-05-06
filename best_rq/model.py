@@ -51,6 +51,20 @@ class IA3MultiHeadAttention(MultiHeadAttention):
         return super().qkv_attention(q, k, v, mask)
 
 
+class IA3MLPRescaling(nn.Module):
+    def __init__(self, n_state: int, *args, **kwargs):
+        super().__init__(*args, **kwargs)
+        self.mlp_weights = nn.Parameter(torch.zeros((n_state,)))
+        self.mlp_biases = nn.Parameter(torch.zeros((n_state,)))
+
+    def forward(self, feats_in: torch.Tensor) -> torch.Tensor:
+        return (
+            feats_in
+            + (self.mlp_weights * feats_in).to(feats_in.dtype)
+            + self.mlp_biases.to(feats_in.dtype)
+        )
+
+
 class IA3ResidualAttentionBlock(ResidualAttentionBlock):
     def __init__(
         self, n_state: int, n_head: int, cross_attention: bool = False
@@ -67,6 +81,9 @@ class IA3ResidualAttentionBlock(ResidualAttentionBlock):
         self.attn = IA3MultiHeadAttention(n_state, n_head)
         self.cross_attn = (
             IA3MultiHeadAttention(n_state, n_head) if cross_attention else None
+        )
+        self.mlp: nn.Sequential = nn.Sequential(
+            *[*self.mlp[:-1], IA3MLPRescaling(self.mlp[0].out_features), self.mlp[-1]]
         )
 
 
@@ -112,8 +129,8 @@ class IA3Whisper(Whisper):
     def unfreeze_encoder_ia3(self) -> None:
         """Unfreezes the added IA3 parameters in the encoder."""
         for block in self.encoder.blocks:
-            attn = block.attn
-            for name, child in attn.named_parameters():
-                if name.endswith("_weights") or name.endswith("_biases"):
-                    child.requires_grad_(True)
-                    logger.debug("Unfreezing layer %s", name)
+            for layer in (block.attn, block.mlp):
+                for name, child in layer.named_parameters():  # type: ignore
+                    if name.endswith("_weights") or name.endswith("_biases"):
+                        child.requires_grad_(True)
+                        logger.debug("Unfreezing layer %s", name)
