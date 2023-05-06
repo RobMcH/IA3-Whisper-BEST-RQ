@@ -46,7 +46,7 @@ class BestRQMasking:
         """Computes the Best-RQ targets for a given tensor of unmasked speech input features.
 
         :param in_feats: A tensor holding the unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
-        :return: A tensor holding the computed targets. Shape: (batch_size, num_codebooks, seq_length)
+        :return: A tensor holding the computed targets. Shape: (batch_size, seq_length)
         """
         batch_size, seq_length = in_feats.shape[0], in_feats.shape[1]
         proj_feats = (
@@ -60,8 +60,12 @@ class BestRQMasking:
             xq=proj_feats.reshape(batch_size * seq_length, -1),
             xb=self.codebooks,
             k=1,
-        )[-1]
-        return targets.reshape(batch_size, seq_length)
+        )[
+            -1
+        ]  # Shape: (batch_size * seq_length)
+        return targets.reshape(
+            batch_size, seq_length
+        )  # Shape: (batch_size, seq_length).
 
     def get_masked_features(self, in_feats: torch.Tensor) -> dict[str, torch.Tensor]:
         """Computes the mask and masked features given some input features.
@@ -90,7 +94,7 @@ class BestRQMasking:
         :param data: A dictionary holding the input data. Must contain a tensor with key "in_feats" with the
          unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
         :return: A dictionary holding:
-            * targets: A tensor holding the computed targets. Shape: (batch_size, num_codebooks, seq_length)
+            * targets: A tensor holding the computed targets. Shape: (batch_size, seq_length)
             * in_feats: Features with masked parts replaced by randomly sampled features.
              Shape: (batch_size, seq_length, emb_dim)
             * mask: The mask used to replace the features. Shape: (batch_size, seq_length)
