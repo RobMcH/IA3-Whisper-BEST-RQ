@@ -80,7 +80,10 @@ class BestRQMasking:
             torch.rand(in_feats.shape[:-1]) < self.masking_prob
         )  # Shape: (batch_size, seq_length)
         in_feats[mask] = torch.normal(
-            mean=0, std=0.1, size=(int(mask.sum().item()), in_feats.shape[-1])
+            mean=0,
+            std=0.1,
+            size=(int(mask.sum().item()), in_feats.shape[-1]),
+            device=in_feats.device,
         )
         return {"in_feats": in_feats, "mask": mask}
 
