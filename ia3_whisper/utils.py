@@ -19,17 +19,20 @@ def compute_cross_entropy_loss(
     return torch.nn.functional.cross_entropy(input=logits, target=target.squeeze())
 
 
-def get_ia3_model(model_name: str, device: str, num_targets: int) -> IA3Whisper:
+def get_ia3_model(
+    model_name: str, device: str, num_targets: int, num_codebooks: int
+) -> IA3Whisper:
     """Loads an IA3 Whisper model, freezes its weights, adds codebook classifiers and unfreezes the IA3 weights.
 
     :param model_name: The name of the pre-trained Whisper model to load.
     :param device: The device to put the model on.
     :param num_targets: The number of targets per codebooks.
+    :param num_codebooks: The numbber of codebooks/classifiers to use.
     :return: The loaded model.
     """
     model = load_model(model_name, device)
     model.freeze()
-    model.add_codebook_classifiers(1, num_targets)
+    model.add_codebook_classifiers(num_codebooks, num_targets)
     model.unfreeze_encoder_ia3()
     return model
 

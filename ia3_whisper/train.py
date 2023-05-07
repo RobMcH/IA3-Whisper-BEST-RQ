@@ -43,6 +43,9 @@ def parse_args() -> argparse.Namespace:
         help="The number of targets per codebook.",
     )
     parser.add_argument(
+        "--num_codebooks", type=int, default=1, help="The number of codebooks."
+    )
+    parser.add_argument(
         "--codebook_dim",
         type=int,
         default=16,
@@ -181,7 +184,9 @@ def log_metrics(batch_idx: int, epoch: int, metrics: dict, use_wandb: bool) -> N
 def main():
     args = parse_args()
     logger.info("Loading model checkpoint %s", args.model_name)
-    model = get_ia3_model(args.model_name, args.device, args.num_targets)
+    model = get_ia3_model(
+        args.model_name, args.device, args.num_targets, args.num_codebooks
+    )
     optimizer, lr_scheduler = get_optimizer(
         model.parameters(),
         warmup_end_lr=args.learning_rate,
@@ -190,6 +195,7 @@ def main():
     )
     best_rq = BestRQMasking(
         num_targets=args.num_targets,
+        num_codebooks=args.num_codebooks,
         emb_dim=80,
         codebook_dim=args.codebook_dim,
         masking_prob=args.masking_prob,
