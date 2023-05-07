@@ -13,7 +13,12 @@ from ia3_whisper.dataset import get_dataloader
 from ia3_whisper.log import get_logger
 from ia3_whisper.masking import BestRQMasking
 from ia3_whisper.model import IA3AudioEncoder, IA3Whisper
-from ia3_whisper.utils import compute_cross_entropy_loss, get_ia3_model, get_optimizer
+from ia3_whisper.utils import (
+    compute_cross_entropy_loss,
+    get_ia3_model,
+    get_optimizer,
+    upload_to_wandb,
+)
 
 logger = get_logger(__name__)
 
@@ -138,9 +143,15 @@ def train(
             metrics["lr"] = lr_scheduler.get_last_lr()[0]
             update_weights(i, accumulate_gradients, loss, optimizer, lr_scheduler)
             log_metrics(i, epoch, metrics, use_wandb)
-
+        # Store epoch IA3 weights and upload to wandb.
+        path = Path(f"{output_path}_epoch_{epoch}").with_suffix(".pt")
+        model.save_ia3_encoder(path)
+        upload_to_wandb(use_wandb, path)
+    # Store final IA3 weights and upload to wandb.
+    output_path = output_path.with_suffix(".pt")
     logger.info("Saving trained IA3 weights to %s.", str(output_path))
     model.save_ia3_encoder(output_path)
+    upload_to_wandb(use_wandb, output_path)
 
 
 def train_step(
@@ -250,7 +261,7 @@ def main():
     use_wandb = os.environ.get("WANDB_API_KEY") is not None
     if use_wandb:
         wandb.init(project="ia3whisper", config=vars(args))
-    output_path = Path(f"{args.model_name}_IA3_{int(time.time())}.pt")
+    output_path = Path(f"{args.model_name}_IA3_{int(time.time())}")
     train(
         model,
         best_rq,

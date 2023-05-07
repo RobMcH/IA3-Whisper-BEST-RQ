@@ -1,8 +1,10 @@
 from __future__ import annotations
 
+from pathlib import Path
 from typing import Iterator
 
 import torch
+import wandb
 
 from ia3_whisper import IA3Whisper, load_model
 
@@ -104,3 +106,16 @@ def lr_update(
     if warmup_init_lr > 0:
         return lr / warmup_init_lr
     return 0.0
+
+
+def upload_to_wandb(use_wandb: bool, path: Path) -> None:
+    """Uploads the weights found at path to wandb.
+
+    :param use_wandb: Whether to upload to wandb.
+    :param path: The path to the weights to upload.
+    """
+    if use_wandb:
+        # Upload IA3 weights to wandb.
+        artifact = wandb.Artifact("ia3_encoder_weights", type="model")
+        artifact.add_file(path)
+        wandb.log_artifact(artifact)
