@@ -76,16 +76,23 @@ class BestRQMasking:
         Modifies given data ('in_feats') in-place.
 
         :param data: A dictionary holding the input data. Must contain a tensor with key "in_feats" with the
-         unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
+         unmasked speech input features. Shape: (batch_size, emb_dim, seq_length)
         :return: A dictionary holding:
             * targets: A tensor holding the computed targets. Shape: (batch_size, seq_length)
             * in_feats: Features with masked parts replaced by randomly sampled features.
-             Shape: (batch_size, seq_length, emb_dim)
+             Shape: (batch_size, emb_dim, seq_length)
             * mask: The mask used to replace the features. Shape: (batch_size, seq_length)
         """
+        # Fix feature shape.
+        data["in_feats"] = data["in_feats"].permute(
+            0, 2, 1
+        )  # Shape: (batch_size, seq_length, emb_dim)
         mask = self.get_mask(data["in_feats"].shape)
         data["targets"] = self.get_targets(data["in_feats"][mask])
         data.update(self.apply_mask(data["in_feats"], mask))
+        data["in_feats"] = data["in_feats"].permute(
+            0, 2, 1
+        )  # Shape: (batch_size, emb_dim, seq_length)
         return data
 
     def get_targets(self, in_feats: torch.Tensor) -> torch.Tensor:
