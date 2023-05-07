@@ -141,6 +141,16 @@ class IA3AudioEncoder(AudioEncoder):
     def forward(
         self, x: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor] | torch.Tensor:
+        """Computes a forward pass through the encoder.
+
+        If the encoder.codebook_classifiers is not None, additionally computes the logits of the classifiers.
+
+        :param x: Tensor holding the mel spectrogram of the audio. Shape = (batch_size, n_mels, n_ctx)
+        :return:
+            x: The computed encoded features. Shape: (batch_size, n_ctx // 2, n_state_audio)
+            logits: [Optional] The logits obtained by applying the codebook classifiers to the encoded features.
+             Shape: (num_codebooks, batch_size, n_ctx // 2, num_targets).
+        """
         x = super().forward(x)
         if self.codebook_classifiers is None:
             return x
