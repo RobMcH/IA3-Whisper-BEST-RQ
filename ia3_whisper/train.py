@@ -5,6 +5,7 @@ import time
 from pathlib import Path
 
 import torch.cuda
+import wandb
 from whisper import _MODELS
 
 from ia3_whisper.dataset import get_dataloader
@@ -161,6 +162,7 @@ def update_weights(
 
 
 def log_metrics(batch_idx: int, epoch: int, metrics: dict) -> None:
+    wandb.log(metrics)
     if batch_idx % 50 == 1:
         logger.info(
             "Epoch %d - Batch %d - Loss %.5f - #Unique targets %d / %d",
@@ -191,7 +193,7 @@ def main():
         device=args.device,
         seed=args.seed,
     )
-
+    wandb.init(project="ia3whisper", config=vars(args))
     output_path = Path(f"{args.model_name}_IA3_{int(time.time())}.pt")
     train(
         model,
@@ -204,6 +206,7 @@ def main():
         args.device,
         output_path,
     )
+    wandb.finish()
 
 
 if __name__ == "__main__":
