@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import os
 import time
 from pathlib import Path
 
@@ -111,6 +112,7 @@ def train(
     accumulate_gradients: int,
     num_epochs: int,
     device: str,
+    use_wandb: bool,
     output_path: Path,
 ):
     dataloader = get_dataloader("test-clean", batch_size, True, device)
@@ -118,7 +120,7 @@ def train(
         for i, batch in enumerate(dataloader):
             loss, metrics = train_step(batch, model.encoder, best_rq)
             update_weights(i, accumulate_gradients, loss, optimizer, lr_scheduler)
-            log_metrics(i, epoch, metrics)
+            log_metrics(i, epoch, metrics, use_wandb)
 
     logger.info("Saving trained IA3 weights to %s.", str(output_path))
     model.save_ia3_encoder(output_path)
@@ -161,8 +163,9 @@ def update_weights(
         optimizer.zero_grad()
 
 
-def log_metrics(batch_idx: int, epoch: int, metrics: dict) -> None:
-    wandb.log(metrics)
+def log_metrics(batch_idx: int, epoch: int, metrics: dict, use_wandb: bool) -> None:
+    if use_wandb:
+        wandb.log(metrics)
     if batch_idx % 50 == 1:
         logger.info(
             "Epoch %d - Batch %d - Loss %.5f - #Unique targets %d / %d",
@@ -193,7 +196,9 @@ def main():
         device=args.device,
         seed=args.seed,
     )
-    wandb.init(project="ia3whisper", config=vars(args))
+    use_wandb = os.environ.get("WANDB_API_KEY") is not None
+    if use_wandb:
+        wandb.init(project="ia3whisper", config=vars(args))
     output_path = Path(f"{args.model_name}_IA3_{int(time.time())}.pt")
     train(
         model,
@@ -204,6 +209,7 @@ def main():
         args.accumulate_gradients,
         args.num_epochs,
         args.device,
+        use_wandb,
         output_path,
     )
     wandb.finish()
