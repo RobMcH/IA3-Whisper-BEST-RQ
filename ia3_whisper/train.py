@@ -117,7 +117,20 @@ def train(
     device: str,
     use_wandb: bool,
     output_path: Path,
-):
+) -> None:
+    """Runs BEST-RQ training on the encoder of the given IA3Whisper model.
+
+    :param model: A (pre-trained) IA3Whisper model. Only the IA3 weights of the AudioEncoder will be fine-tuned.
+    :param best_rq: A BestRQMasking object used to obtain the masked features and corresponding targets.
+    :param optimizer: An optimizer to update the weights with.
+    :param lr_scheduler: A learning rate scheduler.
+    :param batch_size: The batch size used for training.
+    :param accumulate_gradients: An integer denoting the number of batches used per gradient update.
+    :param num_epochs: The number of epochs to train for.
+    :param device: The device to load the model onto.
+    :param use_wandb: Whether to log metrics to wandb.
+    :param output_path: The output path where to store the trained IA3 weights.
+    """
     dataloader = get_dataloader("test-clean", batch_size, True, device)
     for epoch in range(1, num_epochs + 1):
         for i, batch in enumerate(dataloader):
@@ -135,16 +148,26 @@ def train_step(
     model: IA3AudioEncoder,
     best_rq: BestRQMasking,
 ) -> tuple[torch.Tensor, dict]:
+    """Performs one BEST-RQ training step.
+
+    :param batch: A dictionary holding the batch. Must have key 'in_feats'.
+    :param model: The model to use for the forward pass.
+    :param best_rq: A BestRQMasking object to obtain the masked features and targets.
+    :return: A tuple containing:
+        * loss: The computed loss tensor.
+        * metrics: A dictionary holding a float representation of the loss ('loss'), the number of unique targets in
+         the batch ('unique_targets'), and the number of total targets in the batch ('targets').
+    """
     batch = best_rq.get_targets_and_features(batch)
     _, logits = model(batch["in_feats"])
     logits = logits[:, batch["mask"]]
     loss = compute_cross_entropy_loss(logits, batch["targets"])
 
-    unique_targets = batch["targets"].unique().size(0)
+    unique_targets = batch["targets"].unique().nelement()
     return loss, {
         "loss": loss.cpu().item(),
         "unique_targets": unique_targets,
-        "targets": batch["targets"].size(0),
+        "targets": batch["targets"].nelement(),
     }
 
 
@@ -155,6 +178,16 @@ def update_weights(
     optimizer: torch.optim.Optimizer,
     lr_scheduler: torch.optim.lr_scheduler.LambdaLR,
 ) -> None:
+    """Updates the model weights attached to the given optimizer.
+
+    Performs gradient accumulation if accumulate_gradients > 1.
+
+    :param batch_idx: The index of the batch within the epoch.
+    :param accumulate_gradients: Integer specifying how many batches gradients are being accumulated (averaged) over.
+    :param loss: The computed loss.
+    :param optimizer: The optimizer to perform the weight update with.
+    :param lr_scheduler: An LR scheduler; updates the learning rate every accumulate_gradients steps.
+    """
     loss = loss / accumulate_gradients
     loss.backward()
     if (batch_idx + 1) % accumulate_gradients == 0:
@@ -168,6 +201,16 @@ def update_weights(
 
 
 def log_metrics(batch_idx: int, epoch: int, metrics: dict, use_wandb: bool) -> None:
+    """Logs the given metrics using the logger as well as wandb.
+
+    Only logs using the logger every 50 batches to not pollute the logs.
+
+    :param batch_idx: The index of the batch within the epoch.
+    :param epoch: The epoch of the training.
+    :param metrics: A dictionary holding the metrics to log. Keys 'loss', 'unique_targets' and 'targets' will be
+     logged using the logger. Uses -1.0 as a default value when a key is not present.
+    :param use_wandb: Whether to log the metrics to wandb.
+    """
     if use_wandb:
         wandb.log(metrics)
     if batch_idx % 50 == 1:
@@ -175,13 +218,14 @@ def log_metrics(batch_idx: int, epoch: int, metrics: dict, use_wandb: bool) -> N
             "Epoch %d - Batch %d - Loss %.5f - #Unique targets %d / %d",
             epoch,
             batch_idx,
-            metrics["loss"],
-            metrics["unique_targets"],
-            metrics["targets"],
+            metrics.get("loss", -1.0),
+            metrics.get("unique_targets", -1.0),
+            metrics.get("targets", -1.0),
         )
 
 
 def main():
+    """The main function for IA3 training a Whisper checkpoint using BEST-RQ."""
     args = parse_args()
     logger.info("Loading model checkpoint %s", args.model_name)
     model = get_ia3_model(
