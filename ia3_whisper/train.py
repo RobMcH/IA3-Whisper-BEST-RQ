@@ -107,6 +107,7 @@ def train(
     optimizer: torch.optim.Optimizer,
     lr_scheduler: torch.optim.lr_scheduler.LambdaLR,
     batch_size: int,
+    accumulate_gradients: int,
     num_epochs: int,
     device: str,
     output_path: Path,
@@ -114,16 +115,10 @@ def train(
     dataloader = get_dataloader("test-clean", batch_size, True, device)
     for epoch in range(1, num_epochs + 1):
         for i, batch in enumerate(dataloader):
-            metrics = train_step(batch, model.encoder, best_rq, optimizer, lr_scheduler)
-            if i % 50 == 1:
-                logger.info(
-                    "Epoch %d - Batch %d - Loss %.5f - #Unique targets %d / %d",
-                    epoch,
-                    i,
-                    metrics["loss"],
-                    metrics["unique_targets"],
-                    metrics["targets"],
-                )
+            loss, metrics = train_step(batch, model.encoder, best_rq)
+            update_weights(i, accumulate_gradients, loss, optimizer, lr_scheduler)
+            log_metrics(i, epoch, metrics)
+
     logger.info("Saving trained IA3 weights to %s.", str(output_path))
     model.save_ia3_encoder(output_path)
 
@@ -132,23 +127,49 @@ def train_step(
     batch: dict[str, torch.Tensor],
     model: IA3AudioEncoder,
     best_rq: BestRQMasking,
-    optimizer: torch.optim.Optimizer,
-    lr_scheduler: torch.optim.lr_scheduler.LambdaLR,
-) -> dict:
-    model.zero_grad()
+) -> tuple[torch.Tensor, dict]:
     batch = best_rq.get_targets_and_features(batch)
     _, logits = model(batch["in_feats"])
     logits = logits[0, batch["mask"]]
     loss = compute_cross_entropy_loss(logits, batch["targets"])
-    loss.backward()
-    optimizer.step()
-    lr_scheduler.step()
+
     unique_targets = batch["targets"].unique().size(0)
-    return {
+    return loss, {
         "loss": loss.cpu().item(),
         "unique_targets": unique_targets,
         "targets": batch["targets"].size(0),
     }
+
+
+def update_weights(
+    batch_idx: int,
+    accumulate_gradients: int,
+    loss: torch.Tensor,
+    optimizer: torch.optim.Optimizer,
+    lr_scheduler: torch.optim.lr_scheduler.LambdaLR,
+) -> None:
+    loss = loss / accumulate_gradients
+    loss.backward()
+    if (batch_idx + 1) % accumulate_gradients == 0:
+        logger.debug(
+            "Updating weights after accumulating gradients over %d batches.",
+            accumulate_gradients,
+        )
+        optimizer.step()
+        lr_scheduler.step()
+        optimizer.zero_grad()
+
+
+def log_metrics(batch_idx: int, epoch: int, metrics: dict) -> None:
+    if batch_idx % 50 == 1:
+        logger.info(
+            "Epoch %d - Batch %d - Loss %.5f - #Unique targets %d / %d",
+            epoch,
+            batch_idx,
+            metrics["loss"],
+            metrics["unique_targets"],
+            metrics["targets"],
+        )
 
 
 def main():
@@ -178,6 +199,7 @@ def main():
         optimizer,
         lr_scheduler,
         args.batch_size,
+        args.accumulate_gradients,
         args.num_epochs,
         args.device,
         output_path,
