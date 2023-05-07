@@ -14,7 +14,7 @@ from whisper.model import (
     Whisper,
 )
 
-from best_rq.log import get_logger
+from ia3_whisper.log import get_logger
 
 logger = get_logger(__name__)
 

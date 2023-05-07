@@ -37,4 +37,5 @@ ENV MAMBA_ROOT_PREFIX=/root/micromamba/
 ENV SSL_CERT_FILE=/etc/ssl/certs/ca-certificates.crt
 
 RUN micromamba shell init --shell=bash \
-    && echo "micromamba activate best-rq" >> /root/.bashrc
+    && echo "micromamba activate best-rq" >> /root/.bashrc \
+    && python -m pip install -e .

@@ -1,6 +1,12 @@
 import argparse
 
+import torch.cuda
 from whisper import _MODELS
+
+from ia3_whisper.log import get_logger
+from ia3_whisper.utils import get_ia3_model
+
+logger = get_logger(__name__)
 
 
 def parse_args() -> argparse.Namespace:
@@ -76,4 +82,20 @@ def parse_args() -> argparse.Namespace:
         default=0,
         help="The random seed to use for all random number generators.",
     )
+    # Compute device.
+    parser.add_argument(
+        "--device",
+        type=str,
+        default="cuda" if torch.cuda.is_available() else "cpu",
+    )
     return parser.parse_args()
+
+
+def main():
+    args = parse_args()
+    logger.info("Loading model checkpoint %s", args.model_name)
+    get_ia3_model(args.model_name, args.device, args.num_targets)
+
+
+if __name__ == "__main__":
+    main()

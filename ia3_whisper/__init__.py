@@ -12,7 +12,7 @@ from whisper import (
     available_models,
 )
 
-from best_rq.model import IA3Whisper
+from ia3_whisper.model import IA3Whisper
 
 
 def load_model(
