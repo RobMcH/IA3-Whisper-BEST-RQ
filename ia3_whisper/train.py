@@ -1,4 +1,8 @@
+from __future__ import annotations
+
 import argparse
+import time
+from pathlib import Path
 
 import torch.cuda
 from whisper import _MODELS
@@ -6,7 +10,7 @@ from whisper import _MODELS
 from ia3_whisper.dataset import get_dataloader
 from ia3_whisper.log import get_logger
 from ia3_whisper.masking import BestRQMasking
-from ia3_whisper.model import IA3AudioEncoder
+from ia3_whisper.model import IA3AudioEncoder, IA3Whisper
 from ia3_whisper.utils import compute_cross_entropy_loss, get_ia3_model, get_optimizer
 
 logger = get_logger(__name__)
@@ -62,6 +66,9 @@ def parse_args() -> argparse.Namespace:
         help="The batch size used for BEST-RQ training.",
     )
     parser.add_argument(
+        "--num_epochs", type=int, default=10, help="The number of epochs to train for."
+    )
+    parser.add_argument(
         "--learning_rate",
         type=float,
         default=0.004,
@@ -95,23 +102,53 @@ def parse_args() -> argparse.Namespace:
 
 
 def train(
-    model: IA3AudioEncoder,
+    model: IA3Whisper,
     best_rq: BestRQMasking,
     optimizer: torch.optim.Optimizer,
     lr_scheduler: torch.optim.lr_scheduler.LambdaLR,
     batch_size: int,
+    num_epochs: int,
     device: str,
+    output_path: Path,
 ):
     dataloader = get_dataloader("test-clean", batch_size, True, device)
-    for batch in dataloader:
-        model.zero_grad()
-        batch = best_rq.get_targets_and_features(batch)
-        _, logits = model(batch["in_feats"])
-        logits = logits[0, batch["mask"]]
-        loss = compute_cross_entropy_loss(logits, batch["targets"])
-        loss.backward()
-        optimizer.step()
-        lr_scheduler.step()
+    for epoch in range(1, num_epochs + 1):
+        for i, batch in enumerate(dataloader):
+            metrics = train_step(batch, model.encoder, best_rq, optimizer, lr_scheduler)
+            if i % 50 == 1:
+                logger.info(
+                    "Epoch %d - Batch %d - Loss %.5f - #Unique targets %d / %d",
+                    epoch,
+                    i,
+                    metrics["loss"],
+                    metrics["unique_targets"],
+                    metrics["targets"],
+                )
+    logger.info("Saving trained IA3 weights to %s.", str(output_path))
+    model.save_ia3_encoder(output_path)
+
+
+def train_step(
+    batch: dict[str, torch.Tensor],
+    model: IA3AudioEncoder,
+    best_rq: BestRQMasking,
+    optimizer: torch.optim.Optimizer,
+    lr_scheduler: torch.optim.lr_scheduler.LambdaLR,
+) -> dict:
+    model.zero_grad()
+    batch = best_rq.get_targets_and_features(batch)
+    _, logits = model(batch["in_feats"])
+    logits = logits[0, batch["mask"]]
+    loss = compute_cross_entropy_loss(logits, batch["targets"])
+    loss.backward()
+    optimizer.step()
+    lr_scheduler.step()
+    unique_targets = batch["targets"].unique().size(0)
+    return {
+        "loss": loss.cpu().item(),
+        "unique_targets": unique_targets,
+        "targets": batch["targets"].size(0),
+    }
 
 
 def main():
@@ -133,7 +170,18 @@ def main():
         device=args.device,
         seed=args.seed,
     )
-    train(model.encoder, best_rq, optimizer, lr_scheduler, args.batch_size, args.device)
+
+    output_path = Path(f"{args.model_name}_IA3_{int(time.time())}.pt")
+    train(
+        model,
+        best_rq,
+        optimizer,
+        lr_scheduler,
+        args.batch_size,
+        args.num_epochs,
+        args.device,
+        output_path,
+    )
 
 
 if __name__ == "__main__":
