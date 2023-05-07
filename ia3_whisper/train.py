@@ -119,6 +119,7 @@ def train(
     for epoch in range(1, num_epochs + 1):
         for i, batch in enumerate(dataloader):
             loss, metrics = train_step(batch, model.encoder, best_rq)
+            metrics["lr"] = lr_scheduler.get_last_lr()[0]
             update_weights(i, accumulate_gradients, loss, optimizer, lr_scheduler)
             log_metrics(i, epoch, metrics, use_wandb)
 
