@@ -1,6 +1,8 @@
 from __future__ import annotations
 
-from typing import Iterable
+from collections import OrderedDict
+from pathlib import Path
+from typing import Generator, Iterable
 
 import torch
 from torch import nn
@@ -169,12 +171,34 @@ class IA3Whisper(Whisper):
 
     def unfreeze_encoder_ia3(self) -> None:
         """Unfreezes the added IA3 parameters in the encoder."""
-        for i, block in enumerate(self.encoder.blocks):
-            for layer in (block.attn, block.mlp):
-                for name, child in layer.named_parameters():  # type: ignore
-                    if name.endswith("_weights") or name.endswith("_biases"):
-                        child.requires_grad_(True)
-                        logger.debug("Unfreezing layer %s in encoder block %d", name, i)
+        for name, child in self._get_ia3_encoder_parameters():
+            child.requires_grad_(True)
+            logger.debug("Unfreezing parameters of %s", name)
+
+    def save_ia3_encoder(self, path: Path) -> None:
+        """Writes the IA3 parameter state dict to the specified path.
+        :param path: The path to write the state dict to.
+        """
+        ia3_state_dict = self.get_ia3_encoder_state_dict()
+        torch.save(ia3_state_dict, path)
+
+    def load_ia3_encoder(self, path: Path) -> None:
+        """Loads an IA3 state dict from disk and updates the corresponding model weights.
+
+        :param path: The path from where to load the weights from.
+        """
+        ia3_state_dict = torch.load(path)
+        self.load_state_dict(ia3_state_dict, strict=False)
+
+    def get_ia3_encoder_state_dict(self) -> OrderedDict:
+        """Gets the state dict of only the IA3 encoder parameters.
+
+        :return: A PyTorch state dict of the IA3 encoder parameters.
+        """
+        ia3_state_dict = OrderedDict()
+        for name, child in self._get_ia3_encoder_parameters():
+            ia3_state_dict[name] = self.state_dict()[name]
+        return ia3_state_dict
 
     def add_codebook_classifiers(self, num_codebooks: int, num_targets: int) -> None:
         """Adds a number of codebook classifiers for BEST-RQ training of the encoder to the model.
@@ -185,3 +209,16 @@ class IA3Whisper(Whisper):
         self.encoder.add_codebook_classifiers(
             num_codebooks, num_targets, self.dims.n_audio_state, self.device
         )
+
+    def _get_ia3_encoder_parameters(
+        self,
+    ) -> Generator[tuple[str, torch.nn.Parameter], None, None]:
+        """Returns a generator over the IA3 parameters of the encoder model.
+
+        :return: A generator yielding tuples of names and parameters.
+        """
+        for name, child in self.named_parameters():  # type: ignore
+            if name.startswith("encoder.") and (
+                name.endswith("_weights") or name.endswith("_biases")
+            ):
+                yield name, child
