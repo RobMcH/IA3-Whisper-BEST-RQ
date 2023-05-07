@@ -6,6 +6,10 @@ import torch
 import torchaudio
 import whisper
 
+from ia3_whisper.log import get_logger
+
+logger = get_logger(__name__)
+
 # Adapted from https://colab.research.google.com/github/openai/whisper/blob/master/notebooks/LibriSpeech.ipynb
 
 
@@ -20,6 +24,7 @@ class LibriSpeech(torch.utils.data.Dataset):
         :param split: The data split to load. Defaults to 'test-clean'.
         :param device: The device to load the tensors onto.
         """
+        logger.info("(Down)Loading Librispeech %s split", split)
         self.dataset = torchaudio.datasets.LIBRISPEECH(
             root=Path("~/.cache").expanduser(),
             url=split,

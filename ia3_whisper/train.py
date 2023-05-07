@@ -3,8 +3,11 @@ import argparse
 import torch.cuda
 from whisper import _MODELS
 
+from ia3_whisper.dataset import get_dataloader
 from ia3_whisper.log import get_logger
-from ia3_whisper.utils import get_ia3_model
+from ia3_whisper.masking import BestRQMasking
+from ia3_whisper.model import IA3AudioEncoder
+from ia3_whisper.utils import compute_cross_entropy_loss, get_ia3_model, get_optimizer
 
 logger = get_logger(__name__)
 
@@ -91,10 +94,46 @@ def parse_args() -> argparse.Namespace:
     return parser.parse_args()
 
 
+def train(
+    model: IA3AudioEncoder,
+    best_rq: BestRQMasking,
+    optimizer: torch.optim.Optimizer,
+    lr_scheduler: torch.optim.lr_scheduler.LambdaLR,
+    batch_size: int,
+    device: str,
+):
+    dataloader = get_dataloader("test-clean", batch_size, True, device)
+    for batch in dataloader:
+        model.zero_grad()
+        batch = best_rq.get_targets_and_features(batch)
+        _, logits = model(batch["in_feats"])
+        logits = logits[0, batch["mask"]]
+        loss = compute_cross_entropy_loss(logits, batch["targets"])
+        loss.backward()
+        optimizer.step()
+        lr_scheduler.step()
+
+
 def main():
     args = parse_args()
     logger.info("Loading model checkpoint %s", args.model_name)
-    get_ia3_model(args.model_name, args.device, args.num_targets)
+    model = get_ia3_model(args.model_name, args.device, args.num_targets)
+    optimizer, lr_scheduler = get_optimizer(
+        model.parameters(),
+        warmup_end_lr=args.learning_rate,
+        warmup_init_lr=args.learning_rate / 10,
+        warmup_steps=args.warmup_steps,
+    )
+    best_rq = BestRQMasking(
+        num_targets=args.num_targets,
+        emb_dim=80,
+        codebook_dim=args.codebook_dim,
+        masking_prob=args.masking_prob,
+        temporal_reduction=args.temporal_reduction,
+        device=args.device,
+        seed=args.seed,
+    )
+    train(model.encoder, best_rq, optimizer, lr_scheduler, args.batch_size, args.device)
 
 
 if __name__ == "__main__":
