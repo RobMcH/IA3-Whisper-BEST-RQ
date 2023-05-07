@@ -22,7 +22,7 @@ def compute_cross_entropy_loss(
             f" Got logits: {logits.shape} and target: {target.shape}."
         )
     num_codebooks = logits.shape[0]
-    loss = torch.tensor(0, device=logits.device)
+    loss = torch.tensor(0.0, device=logits.device)
     for codebook in range(num_codebooks):
         loss += torch.nn.functional.cross_entropy(
             input=logits[codebook], target=target[codebook]
