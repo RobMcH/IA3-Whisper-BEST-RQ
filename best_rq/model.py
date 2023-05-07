@@ -122,6 +122,7 @@ class IA3Whisper(Whisper):
             self.dims.n_audio_head,
             self.dims.n_audio_layer,
         )
+        self.codebook_classifiers: nn.ModuleList | None = None
 
     def freeze(self) -> None:
         """Freezes all model parameters."""
@@ -135,3 +136,27 @@ class IA3Whisper(Whisper):
                     if name.endswith("_weights") or name.endswith("_biases"):
                         child.requires_grad_(True)
                         logger.debug("Unfreezing layer %s in encoder block %d", name, i)
+
+    def add_codebook_classifiers(self, num_codebooks: int, num_targets: int) -> None:
+        """Adds a number of codebook classifiers for BEST-RQ training of the encoder to the model.
+
+        :param num_codebooks: The number of codebook classifiers to add.
+        :param num_targets: The number of targets (classes) per classifier.
+        """
+        if num_codebooks <= 0:
+            raise ValueError(
+                f"Number of codebooks must be greater than 0. Got {num_codebooks}"
+            )
+        if num_targets <= 0:
+            raise ValueError(
+                f"Number of targets must be greater than 0. Got {num_targets}"
+            )
+
+        self.codebook_classifiers = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(self.dims.n_audio_state, num_targets), nn.Softmax(dim=-1)
+                )
+                for _ in range(num_codebooks)
+            ]
+        )
