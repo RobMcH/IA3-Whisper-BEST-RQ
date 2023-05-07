@@ -137,7 +137,7 @@ def train_step(
 ) -> tuple[torch.Tensor, dict]:
     batch = best_rq.get_targets_and_features(batch)
     _, logits = model(batch["in_feats"])
-    logits = logits[0, batch["mask"]]
+    logits = logits[:, batch["mask"]]
     loss = compute_cross_entropy_loss(logits, batch["targets"])
 
     unique_targets = batch["targets"].unique().size(0)

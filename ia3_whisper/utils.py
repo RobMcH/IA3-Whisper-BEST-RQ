@@ -12,11 +12,22 @@ def compute_cross_entropy_loss(
 ) -> torch.Tensor:
     """Computes the cross entropy loss between the given logits and targets.
 
-    :param logits: The computed logits. Shape: (num_masked, num_targets).
-    :param target: The target tensor. Shape: (num_masked, 1).
+    :param logits: The computed logits. Shape: (num_codebooks, num_masked, num_targets).
+    :param target: The target tensor. Shape: (num_codebooks, num_masked).
     :return: The computed loss tensor.
     """
-    return torch.nn.functional.cross_entropy(input=logits, target=target.squeeze())
+    if logits.shape[:-1] != target.shape:
+        raise ValueError(
+            f"Logits and targets need to have matching shapes in the leading dimensions."
+            f" Got logits: {logits.shape} and target: {target.shape}."
+        )
+    num_codebooks = logits.shape[0]
+    loss = torch.tensor(0, device=logits.device)
+    for codebook in range(num_codebooks):
+        loss += torch.nn.functional.cross_entropy(
+            input=logits[codebook], target=target[codebook]
+        )
+    return loss / num_codebooks
 
 
 def get_ia3_model(
