@@ -106,13 +106,53 @@ class IA3AudioEncoder(AudioEncoder):
         self.blocks: Iterable[IA3ResidualAttentionBlock] = nn.ModuleList(
             [IA3ResidualAttentionBlock(n_state, n_head) for _ in range(n_layer)]
         )
+        self.codebook_classifiers: nn.ModuleList | None = None
+
+    def add_codebook_classifiers(
+        self, num_codebooks: int, num_targets: int, n_audio_state: int, device: str
+    ) -> None:
+        """Adds a number of codebook classifiers for BEST-RQ training of the encoder to the model.
+
+        :param num_codebooks: The number of codebook classifiers to add.
+        :param num_targets: The number of targets (classes) per classifier.
+        :param n_audio_state: The hidden size of audio features within the model.
+        :param device: The device to initialize the classifiers on.
+        """
+        if num_codebooks <= 0:
+            raise ValueError(
+                f"Number of codebooks must be greater than 0. Got {num_codebooks}"
+            )
+        if num_targets <= 0:
+            raise ValueError(
+                f"Number of targets must be greater than 0. Got {num_targets}"
+            )
+
+        self.codebook_classifiers = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(n_audio_state, num_targets, device=device),
+                )
+                for _ in range(num_codebooks)
+            ]
+        )
+
+    def forward(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor] | torch.Tensor:
+        x = super().forward(x)
+        if self.codebook_classifiers is None:
+            return x
+        logits = torch.stack(
+            [classifier(x) for classifier in self.codebook_classifiers]
+        )
+        return x, logits
 
 
 class IA3Whisper(Whisper):
     def __init__(self, dims: ModelDimensions) -> None:
         """Initializes an (IA)^3-adapted Whisper implementation.
 
-        :param dims: A container holding the model hyperparameters.
+        :param dims: A container holding the model hyper-parameters.
         """
         super().__init__(dims=dims)
         self.encoder = IA3AudioEncoder(
@@ -122,7 +162,6 @@ class IA3Whisper(Whisper):
             self.dims.n_audio_head,
             self.dims.n_audio_layer,
         )
-        self.codebook_classifiers: nn.ModuleList | None = None
 
     def freeze(self) -> None:
         """Freezes all model parameters."""
@@ -143,20 +182,6 @@ class IA3Whisper(Whisper):
         :param num_codebooks: The number of codebook classifiers to add.
         :param num_targets: The number of targets (classes) per classifier.
         """
-        if num_codebooks <= 0:
-            raise ValueError(
-                f"Number of codebooks must be greater than 0. Got {num_codebooks}"
-            )
-        if num_targets <= 0:
-            raise ValueError(
-                f"Number of targets must be greater than 0. Got {num_targets}"
-            )
-
-        self.codebook_classifiers = nn.ModuleList(
-            [
-                nn.Sequential(
-                    nn.Linear(self.dims.n_audio_state, num_targets), nn.Softmax(dim=-1)
-                )
-                for _ in range(num_codebooks)
-            ]
+        self.encoder.add_codebook_classifiers(
+            num_codebooks, num_targets, self.dims.n_audio_state, self.device
         )
