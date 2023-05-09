@@ -43,6 +43,13 @@ def parse_args() -> argparse.Namespace:
         choices=_MODELS.keys(),
         help="The pre-trained Whisper checkpoint to load.",
     )
+    # Training dataset
+    parser.add_argument(
+        "--train_dataset",
+        type=str,
+        default="train-clean-100",
+        help="Which LibriSpeech data split to use for training.",
+    )
     # BEST-RQ hyper-parameters.
     parser.add_argument(
         "--num_targets",
@@ -125,6 +132,7 @@ def train(
     device: str,
     use_wandb: bool,
     output_path: Path,
+    train_dataset: str,
 ) -> None:
     """Run BEST-RQ training on the encoder of the given IA3Whisper model.
 
@@ -138,8 +146,9 @@ def train(
     :param device: The device to load the model onto.
     :param use_wandb: Whether to log metrics to wandb.
     :param output_path: The output path where to store the trained IA3 weights.
+    :param train_dataset: Which LibriSpeech data split to use for training.
     """
-    dataloader = get_dataloader("train-clean-100", batch_size, True, device)
+    dataloader = get_dataloader(train_dataset, batch_size, True, device)
     for epoch in range(1, num_epochs + 1):
         for i, batch in enumerate(dataloader):
             loss, metrics = train_step(batch, model.encoder, best_rq)
@@ -277,6 +286,7 @@ def main():
         args.device,
         use_wandb,
         output_path,
+        args.train_dataset,
     )
     wandb.finish()
 
