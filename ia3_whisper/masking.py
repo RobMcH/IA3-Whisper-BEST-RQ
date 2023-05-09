@@ -77,6 +77,8 @@ class BestRQMasking:
         # Initialize (GPU) resources for FAISS.
         self.res = faiss.StandardGpuResources()
         self.res.setDefaultNullStreamAllDevices()
+        # Set size of temporary buffer to 128 MByte. Reduces memory consumption by ~1.4 GByte without performance hit.
+        self.res.setTempMemory(128 * 1024 * 1024)
         self.metric = metric
 
         # Masking hyper-parameters.
