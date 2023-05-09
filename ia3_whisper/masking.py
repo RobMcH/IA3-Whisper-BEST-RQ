@@ -94,7 +94,8 @@ class BestRQMasking:
         Modifies given data ('in_feats') in-place.
 
         :param data: A dictionary holding the input data. Must contain a tensor with key "in_feats" with the
-         unmasked speech input features. Shape: (batch_size, emb_dim, seq_length)
+         unmasked speech input features and "padding_mask" to denote which tokens are not padding.
+          Shape: (batch_size, emb_dim, seq_length)
         :return: A dictionary holding:
             * targets: A tensor holding the computed targets. Shape: (num_masked, 1)
             * in_feats: Features with masked parts replaced by randomly sampled features.
@@ -105,7 +106,7 @@ class BestRQMasking:
         data["in_feats"] = data["in_feats"].permute(
             0, 2, 1
         )  # Shape: (batch_size, seq_length, emb_dim)
-        mask = self.get_mask(data["in_feats"].shape)
+        mask = self.get_mask(data["in_feats"].shape, data["padding_mask"])
         batch_size, seq_length = mask.shape
         # Reshape mask for downstream use. Stack and logical OR mask values.
         mask_stacked = (
@@ -169,11 +170,15 @@ class BestRQMasking:
             targets.append(codebook_targets)
         return torch.stack(targets)  # Shape: (self.num_codebooks, num_masked // 2)
 
-    def get_mask(self, in_feats_shape: torch.Size) -> torch.Tensor:
+    def get_mask(
+        self, in_feats_shape: torch.Size, padding_mask: torch.Tensor
+    ) -> torch.Tensor:
         """Compute the mask and masked features given some input features.
 
         :param in_feats_shape: A torch.Size holding the shape of the input features.
          Dimensions: (batch_size, seq_length, emb_dim)
+        :param padding_mask: A Tensor holding a mask to denote which tokens are not padding. Used to avoid padding
+         tokens being masked.
         :return: The mask used to replace the features. Shape: (batch_size, seq_length)
         """
         mask = (
@@ -192,6 +197,8 @@ class BestRQMasking:
         seq_span_indices = seq_span_indices[seq_span_indices < mask.shape[1]]
         # Update mask with the sampled spans.
         mask[batch_span_indices, seq_span_indices] = True
+        # Remove padding tokens from mask.
+        mask[padding_mask] = False
         return mask
 
     def apply_mask(
