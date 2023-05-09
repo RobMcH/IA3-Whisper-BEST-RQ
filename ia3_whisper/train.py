@@ -136,7 +136,7 @@ def train(
     :param use_wandb: Whether to log metrics to wandb.
     :param output_path: The output path where to store the trained IA3 weights.
     """
-    dataloader = get_dataloader("test-clean", batch_size, True, device)
+    dataloader = get_dataloader("train-clean-100", batch_size, True, device)
     for epoch in range(1, num_epochs + 1):
         for i, batch in enumerate(dataloader):
             loss, metrics = train_step(batch, model.encoder, best_rq)
