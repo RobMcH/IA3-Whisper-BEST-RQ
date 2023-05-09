@@ -45,14 +45,23 @@ class LibriSpeech(torch.utils.data.Dataset):
         """Get and process the item with the corresponding index in the data.
 
         :param item: The index of the item within the dataset.
-        :return: A dictionary holding the computed log mel spectograms ('in_feats') and the transcribed
-         text ('text_targets').
+        :return: A dictionary holding the computed log mel spectograms ('in_feats'), the transcribed
+         text ('text_targets'), and a mask denoting which tokens are entirely based on padding ('padding_mask').
         """
         audio, sample_rate, text, *_ = self.dataset[item]
         assert sample_rate == 16000
+        audio = audio.flatten()
+        # Calculate the number of full padding tokens at the end.
+        padding_tokens = (
+            max(whisper.audio.N_SAMPLES - audio.shape[-1], 0)
+            // whisper.audio.HOP_LENGTH
+        )
         audio = whisper.pad_or_trim(audio.flatten())
         mel = whisper.log_mel_spectrogram(audio, device=self.device)
-        return {"in_feats": mel, "text_targets": text}
+        # Create mask to remove padding tokens.
+        padding_mask = torch.ones(mel.shape[-1], dtype=torch.bool)
+        padding_mask[-padding_tokens:] = False
+        return {"in_feats": mel, "text_targets": text, "padding_mask": padding_mask}
 
 
 def get_dataloader(
