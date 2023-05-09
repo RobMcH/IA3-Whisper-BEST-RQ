@@ -19,6 +19,7 @@ from ia3_whisper.utils import (
     compute_cross_entropy_loss,
     get_ia3_model,
     get_optimizer,
+    set_seed,
     upload_to_wandb,
 )
 
@@ -240,6 +241,7 @@ def log_metrics(batch_idx: int, epoch: int, metrics: dict, use_wandb: bool) -> N
 def main():
     """Train a Whisper checkpoint using IA3 and BEST-RQ."""
     args = parse_args()
+    set_seed(args.seed)
     logger.info("Loading model checkpoint %s", args.model_name)
     model = get_ia3_model(
         args.model_name, args.device, args.num_targets, args.num_codebooks

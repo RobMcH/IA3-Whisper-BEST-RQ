@@ -2,9 +2,11 @@
 
 from __future__ import annotations
 
+import random
 from pathlib import Path
 from typing import Iterator
 
+import numpy as np
 import torch
 import wandb
 
@@ -132,3 +134,13 @@ def upload_to_wandb(use_wandb: bool, path: Path) -> None:
         artifact = wandb.Artifact("ia3_encoder_weights", type="model")
         artifact.add_file(path)
         wandb.log_artifact(artifact)
+
+
+def set_seed(seed: int) -> None:
+    """Set the random seeds of the various libraries responsible for randomness.
+
+    :param seed: The seed to use.
+    """
+    torch.manual_seed(seed)
+    np.random.seed(seed)
+    random.seed(seed)
