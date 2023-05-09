@@ -1,3 +1,5 @@
+"""Implements logging functionalities."""
+
 import logging
 import os
 import sys

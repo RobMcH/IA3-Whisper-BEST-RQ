@@ -1,3 +1,5 @@
+"""Enables installation of the package via pip."""
+
 import site
 import sys
 

@@ -1,3 +1,5 @@
+"""Contains a collection of utility functions."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -57,6 +59,17 @@ def get_optimizer(
     warmup_steps: int,
     use_lr_scheduler: bool = True,
 ) -> tuple[torch.optim.Optimizer, torch.optim.lr_scheduler.LambdaLR]:
+    """Get an Adam optimizer and Transformer learning rate scheduler.
+
+    If use_lr_scheduler is set to False, a dummy scheduler is returned which provides a constant learning rate.
+
+    :param parameters: The parameters of the model to optimize.
+    :param warmup_init_lr: The initial warmup learning rate.
+    :param warmup_end_lr: The final warmup learning rate.
+    :param warmup_steps: The number of warmup steps.
+    :param use_lr_scheduler: Whether to return a true or dummy learning rate scheduler.
+    :return: A tuple containing the optimizer and the learning rate scheduler.
+    """
     warmup_init_lr = min(warmup_init_lr, warmup_end_lr)
     linear_lr_step = (warmup_end_lr - warmup_init_lr) / warmup_steps
     decay_factor = warmup_end_lr * warmup_steps**2

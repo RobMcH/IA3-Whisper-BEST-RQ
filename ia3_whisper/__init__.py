@@ -1,3 +1,5 @@
+"""Implement IA3-based training of Whisper-like models using BEST-RQ."""
+
 from __future__ import annotations
 
 import io
@@ -34,7 +36,8 @@ def load_model(
         path to download the model files; by default, it uses "~/.cache/whisper"
     in_memory: bool
         whether to preload the model weights into host memory
-    Returns
+
+    :return:
     -------
     model : Whisper
         The Whisper ASR model instance

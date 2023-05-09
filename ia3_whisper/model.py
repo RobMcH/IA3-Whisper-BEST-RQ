@@ -1,3 +1,6 @@
+"""Contains the implementations of the IA3-adapted Whisper models."""
+
+
 from __future__ import annotations
 
 from collections import OrderedDict
@@ -20,6 +23,8 @@ logger = get_logger(__name__)
 
 
 class IA3MultiHeadAttention(MultiHeadAttention):
+    """Implements an IA3-adapted MHA as described in https://arxiv.org/abs/2205.05638."""
+
     def __init__(self, n_state: int, n_head: int) -> None:
         """(IA)^3-adapted MultiHeadAttention calculation. Learn to rescale the activations for fine-tuning.
 
@@ -55,12 +60,24 @@ class IA3MultiHeadAttention(MultiHeadAttention):
 
 
 class IA3MLPRescaling(nn.Module):
+    """Implements an IA3-rescaled MLP for the use in IA3-adapted models."""
+
     def __init__(self, n_state: int, *args, **kwargs):
+        """Initialize the class.
+
+        :param n_state: The hidden dimension of the network.
+        """
         super().__init__(*args, **kwargs)
         self.mlp_weights = nn.Parameter(torch.zeros((n_state,)))
         self.mlp_biases = nn.Parameter(torch.zeros((n_state,)))
 
     def forward(self, feats_in: torch.Tensor) -> torch.Tensor:
+        """Compute a forward pass through the IA3 rescaled MLP.
+
+        :param feats_in: The input features of the network.
+
+        :return: The computed output tensor.
+        """
         return (
             feats_in
             + (self.mlp_weights * feats_in).to(feats_in.dtype)
@@ -69,6 +86,8 @@ class IA3MLPRescaling(nn.Module):
 
 
 class IA3ResidualAttentionBlock(ResidualAttentionBlock):
+    """Implements an IA3 ResidualAttentionBlock using MHA with learnable activation rescaling."""
+
     def __init__(
         self, n_state: int, n_head: int, cross_attention: bool = False
     ) -> None:
@@ -91,6 +110,8 @@ class IA3ResidualAttentionBlock(ResidualAttentionBlock):
 
 
 class IA3AudioEncoder(AudioEncoder):
+    """Implements an IA3-adapted Whisper AudioEncoder with learnable activation rescaling."""
+
     def __init__(
         self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int
     ) -> None:
@@ -161,6 +182,8 @@ class IA3AudioEncoder(AudioEncoder):
 
 
 class IA3Whisper(Whisper):
+    """Implements an IA3-adapted Whisper model with IA3-weights injected into the encoder stack."""
+
     def __init__(self, dims: ModelDimensions) -> None:
         """Initialize an (IA)^3-adapted Whisper implementation.
 

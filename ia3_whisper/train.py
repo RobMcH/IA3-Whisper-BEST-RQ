@@ -1,3 +1,5 @@
+"""Contains the main logic to train a Whisper-like model using IA3 and BEST-RQ."""
+
 from __future__ import annotations
 
 import argparse

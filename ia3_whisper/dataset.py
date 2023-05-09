@@ -1,3 +1,5 @@
+"""Contains dataset and dataloader related classes and functions."""
+
 from __future__ import annotations
 
 from pathlib import Path
@@ -10,13 +12,12 @@ from ia3_whisper.log import get_logger
 
 logger = get_logger(__name__)
 
-# Adapted from https://colab.research.google.com/github/openai/whisper/blob/master/notebooks/LibriSpeech.ipynb
-
 
 class LibriSpeech(torch.utils.data.Dataset):
     """A simple class to wrap LibriSpeech and trim/pad the audio to 30 seconds.
 
     It will drop the last few seconds of a very small portion of the utterances.
+    Adapted from https://colab.research.google.com/github/openai/whisper/blob/master/notebooks/LibriSpeech.ipynb
     """
 
     def __init__(self, split: str = "test-clean", device: str = "cpu") -> None:
@@ -34,9 +35,19 @@ class LibriSpeech(torch.utils.data.Dataset):
         self.device = device
 
     def __len__(self) -> int:
+        """Return the number of samples in the dataset.
+
+        :return: The number of samples in the dataset.
+        """
         return len(self.dataset)
 
     def __getitem__(self, item: int) -> dict[str, torch.Tensor | str]:
+        """Get and process the item with the corresponding index in the data.
+
+        :param item: The index of the item within the dataset.
+        :return: A dictionary holding the computed log mel spectograms ('in_feats') and the transcribed
+         text ('text_targets').
+        """
         audio, sample_rate, text, *_ = self.dataset[item]
         assert sample_rate == 16000
         audio = whisper.pad_or_trim(audio.flatten())

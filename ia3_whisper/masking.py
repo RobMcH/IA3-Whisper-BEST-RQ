@@ -1,3 +1,5 @@
+"""Implements the BEST-RQ masking algorithm."""
+
 from __future__ import annotations
 
 import faiss
@@ -10,6 +12,8 @@ WHISPER_FRAME_LENGTH = 25
 
 
 class BestRQMasking:
+    """Implements BEST-RQ masking in BEST-RQ as well as Google USM-style."""
+
     def __init__(
         self,
         num_targets: int,
