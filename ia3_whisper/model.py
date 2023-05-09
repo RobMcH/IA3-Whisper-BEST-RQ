@@ -40,7 +40,7 @@ class IA3MultiHeadAttention(MultiHeadAttention):
         v: torch.Tensor,
         mask: torch.Tensor | None = None,
     ) -> torch.Tensor:
-        """Calculates (IA)^3-adapted QKV attention with learned activation scaling.
+        """Calculate (IA)^3-adapted QKV attention with learned activation scaling.
 
         :param q: A tensor holding the queries. Shape: (batch_size, n_mels, n_ctx)
         :param k: A tensor holding the keys. Shape: (batch_size, n_mels, n_ctx)
@@ -72,7 +72,7 @@ class IA3ResidualAttentionBlock(ResidualAttentionBlock):
     def __init__(
         self, n_state: int, n_head: int, cross_attention: bool = False
     ) -> None:
-        """Initializes an (IA)^3-adapted ResidualAttentionBlock.
+        """Initialize an (IA)^3-adapted ResidualAttentionBlock.
 
         :param n_state: The hidden size of the layers.
         :param n_head: The number of attention heads.
@@ -94,7 +94,7 @@ class IA3AudioEncoder(AudioEncoder):
     def __init__(
         self, n_mels: int, n_ctx: int, n_state: int, n_head: int, n_layer: int
     ) -> None:
-        """Initializes an (IA)^3-adapted AudioEncoder implementation.
+        """Initialize an (IA)^3-adapted AudioEncoder implementation.
 
         :param n_mels: The number of mel spectrograms.
         :param n_ctx: The context size.
@@ -113,7 +113,7 @@ class IA3AudioEncoder(AudioEncoder):
     def add_codebook_classifiers(
         self, num_codebooks: int, num_targets: int, n_audio_state: int, device: str
     ) -> None:
-        """Adds a number of codebook classifiers for BEST-RQ training of the encoder to the model.
+        """Add a number of codebook classifiers for BEST-RQ training of the encoder to the model.
 
         :param num_codebooks: The number of codebook classifiers to add.
         :param num_targets: The number of targets (classes) per classifier.
@@ -141,7 +141,7 @@ class IA3AudioEncoder(AudioEncoder):
     def forward(
         self, x: torch.Tensor
     ) -> tuple[torch.Tensor, torch.Tensor] | torch.Tensor:
-        """Computes a forward pass through the encoder.
+        """Compute a forward pass through the encoder.
 
         If the encoder.codebook_classifiers is not None, additionally computes the logits of the classifiers.
 
@@ -162,7 +162,7 @@ class IA3AudioEncoder(AudioEncoder):
 
 class IA3Whisper(Whisper):
     def __init__(self, dims: ModelDimensions) -> None:
-        """Initializes an (IA)^3-adapted Whisper implementation.
+        """Initialize an (IA)^3-adapted Whisper implementation.
 
         :param dims: A container holding the model hyper-parameters.
         """
@@ -176,24 +176,25 @@ class IA3Whisper(Whisper):
         )
 
     def freeze(self) -> None:
-        """Freezes all model parameters."""
+        """Freeze all model parameters."""
         self.requires_grad_(False)
 
     def unfreeze_encoder_ia3(self) -> None:
-        """Unfreezes the added IA3 parameters in the encoder."""
+        """Unfreeze the added IA3 parameters in the encoder."""
         for name, child in self._get_ia3_encoder_parameters():
             child.requires_grad_(True)
             logger.debug("Unfreezing parameters of %s", name)
 
     def save_ia3_encoder(self, path: Path) -> None:
-        """Writes the IA3 parameter state dict to the specified path.
+        """Write the IA3 parameter state dict to the specified path.
+
         :param path: The path to write the state dict to.
         """
         ia3_state_dict = self.get_ia3_encoder_state_dict()
         torch.save(ia3_state_dict, path)
 
     def load_ia3_encoder(self, path: Path) -> None:
-        """Loads an IA3 state dict from disk and updates the corresponding model weights.
+        """Load an IA3 state dict from disk and updates the corresponding model weights.
 
         :param path: The path from where to load the weights from.
         """
@@ -201,7 +202,7 @@ class IA3Whisper(Whisper):
         self.load_state_dict(ia3_state_dict, strict=False)
 
     def get_ia3_encoder_state_dict(self) -> OrderedDict:
-        """Gets the state dict of only the IA3 encoder parameters.
+        """Get the state dict of only the IA3 encoder parameters.
 
         :return: A PyTorch state dict of the IA3 encoder parameters.
         """
@@ -211,7 +212,7 @@ class IA3Whisper(Whisper):
         return ia3_state_dict
 
     def add_codebook_classifiers(self, num_codebooks: int, num_targets: int) -> None:
-        """Adds a number of codebook classifiers for BEST-RQ training of the encoder to the model.
+        """Add a number of codebook classifiers for BEST-RQ training of the encoder to the model.
 
         :param num_codebooks: The number of codebook classifiers to add.
         :param num_targets: The number of targets (classes) per classifier.
@@ -223,7 +224,7 @@ class IA3Whisper(Whisper):
     def _get_ia3_encoder_parameters(
         self,
     ) -> Generator[tuple[str, torch.nn.Parameter], None, None]:
-        """Returns a generator over the IA3 parameters of the encoder model.
+        """Return a generator over the IA3 parameters of the encoder model.
 
         :return: A generator yielding tuples of names and parameters.
         """

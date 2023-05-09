@@ -123,7 +123,7 @@ def train(
     use_wandb: bool,
     output_path: Path,
 ) -> None:
-    """Runs BEST-RQ training on the encoder of the given IA3Whisper model.
+    """Run BEST-RQ training on the encoder of the given IA3Whisper model.
 
     :param model: A (pre-trained) IA3Whisper model. Only the IA3 weights of the AudioEncoder will be fine-tuned.
     :param best_rq: A BestRQMasking object used to obtain the masked features and corresponding targets.
@@ -159,7 +159,7 @@ def train_step(
     model: IA3AudioEncoder,
     best_rq: BestRQMasking,
 ) -> tuple[torch.Tensor, dict]:
-    """Performs one BEST-RQ training step.
+    """Perform one BEST-RQ training step.
 
     :param batch: A dictionary holding the batch. Must have key 'in_feats'.
     :param model: The model to use for the forward pass.
@@ -189,7 +189,7 @@ def update_weights(
     optimizer: torch.optim.Optimizer,
     lr_scheduler: torch.optim.lr_scheduler.LambdaLR,
 ) -> None:
-    """Updates the model weights attached to the given optimizer.
+    """Update the model weights attached to the given optimizer.
 
     Performs gradient accumulation if accumulate_gradients > 1.
 
@@ -212,7 +212,7 @@ def update_weights(
 
 
 def log_metrics(batch_idx: int, epoch: int, metrics: dict, use_wandb: bool) -> None:
-    """Logs the given metrics using the logger as well as wandb.
+    """Log the given metrics using the logger as well as wandb.
 
     Only logs using the logger every 50 batches to not pollute the logs.
 
@@ -236,7 +236,7 @@ def log_metrics(batch_idx: int, epoch: int, metrics: dict, use_wandb: bool) -> N
 
 
 def main():
-    """The main function for IA3 training a Whisper checkpoint using BEST-RQ."""
+    """Train a Whisper checkpoint using IA3 and BEST-RQ."""
     args = parse_args()
     logger.info("Loading model checkpoint %s", args.model_name)
     model = get_ia3_model(

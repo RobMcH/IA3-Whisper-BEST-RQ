@@ -23,7 +23,7 @@ class BestRQMasking:
         seed: int = 0,
         metric: int = faiss.METRIC_INNER_PRODUCT,
     ) -> None:
-        """Implements the Best-RQ masking strategy. Allows for both original Best-RQ and Google USM-style.
+        """Implement the Best-RQ masking strategy. Allow for both original Best-RQ and Google USM-style.
 
         :param num_targets: The number of quantization targets per codebook.
         :param num_codebooks: The number of codebooks.
@@ -83,7 +83,7 @@ class BestRQMasking:
     def get_targets_and_features(
         self, data: dict[str, torch.Tensor]
     ) -> dict[str, torch.Tensor]:
-        """Transforms the given features to obtain targets and the masked features using Best-RQ.
+        """Transform the given features to obtain targets and the masked features using Best-RQ.
 
         Modifies given data ('in_feats') in-place.
 
@@ -131,7 +131,7 @@ class BestRQMasking:
         return data
 
     def get_targets(self, in_feats: torch.Tensor) -> torch.Tensor:
-        """Computes the Best-RQ targets for a given tensor of unmasked speech input features.
+        """Compute the Best-RQ targets for a given tensor of unmasked speech input features.
 
         :param in_feats: A tensor holding the masked speech input features. Shape: (num_masked, emb_dim)
         :return: A tensor holding the computed targets. Shape: (num_masked,)
@@ -164,7 +164,7 @@ class BestRQMasking:
         return torch.stack(targets)  # Shape: (self.num_codebooks, num_masked // 2)
 
     def get_mask(self, in_feats_shape: torch.Size) -> torch.Tensor:
-        """Computes the mask and masked features given some input features.
+        """Compute the mask and masked features given some input features.
 
         :param in_feats_shape: A torch.Size holding the shape of the input features.
          Dimensions: (batch_size, seq_length, emb_dim)
@@ -191,7 +191,7 @@ class BestRQMasking:
     def apply_mask(
         self, in_feats: torch.Tensor, mask: torch.Tensor
     ) -> dict[str, torch.Tensor]:
-        """Applies the mask to the input features and replaces masked regions by randomly sampled values.
+        """Apply the mask to the input features and replaces masked regions by randomly sampled values.
 
         :param in_feats: A tensor holding the unmasked speech input features. Shape: (batch_size, seq_length, emb_dim)
         :param mask: The mask used to replace the features. Shape: (batch_size, seq_length)

@@ -4,7 +4,7 @@ import sys
 
 
 def get_logger(name: str) -> logging.Logger:
-    """Configures a console logger.
+    """Configure a console logger.
 
     The log level is set depending on the environment variable 'BEST_RQ_LOG_LEVEL'.
     - 1: DEBUG

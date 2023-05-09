@@ -21,8 +21,8 @@ def load_model(
     download_root: Path | str | None = None,
     in_memory: bool = False,
 ) -> IA3Whisper:
-    """
-    Load a Whisper ASR model
+    """Load a Whisper ASR model.
+
     Parameters
     ----------
     name : str
@@ -39,7 +39,6 @@ def load_model(
     model : Whisper
         The Whisper ASR model instance
     """
-
     if device is None:
         device = "cuda" if torch.cuda.is_available() else "cpu"
     if download_root is None:

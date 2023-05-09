@@ -15,11 +15,12 @@ logger = get_logger(__name__)
 
 class LibriSpeech(torch.utils.data.Dataset):
     """A simple class to wrap LibriSpeech and trim/pad the audio to 30 seconds.
+
     It will drop the last few seconds of a very small portion of the utterances.
     """
 
     def __init__(self, split: str = "test-clean", device: str = "cpu") -> None:
-        """Initializes the LibriSpeech dataset.
+        """Initialize the LibriSpeech dataset.
 
         :param split: The data split to load. Defaults to 'test-clean'.
         :param device: The device to load the tensors onto.
@@ -47,6 +48,7 @@ def get_dataloader(
     split: str, batch_size: int, shuffle: bool, device: str = "cpu"
 ) -> torch.utils.data.DataLoader:
     """Construct a dataloader for the librispeech dataset.
+
     :param split: The data split to use.
     :param batch_size: The size of the batches the sampler fetches.
     :param shuffle: Whether to shuffle the data.

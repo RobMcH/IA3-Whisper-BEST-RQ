@@ -12,7 +12,7 @@ from ia3_whisper import IA3Whisper, load_model
 def compute_cross_entropy_loss(
     logits: torch.Tensor, target: torch.Tensor
 ) -> torch.Tensor:
-    """Computes the cross entropy loss between the given logits and targets.
+    """Compute the cross entropy loss between the given logits and targets.
 
     :param logits: The computed logits. Shape: (num_codebooks, num_masked, num_targets).
     :param target: The target tensor. Shape: (num_codebooks, num_masked).
@@ -35,7 +35,7 @@ def compute_cross_entropy_loss(
 def get_ia3_model(
     model_name: str, device: str, num_targets: int, num_codebooks: int
 ) -> IA3Whisper:
-    """Loads an IA3 Whisper model, freezes its weights, adds codebook classifiers and unfreezes the IA3 weights.
+    """Load an IA3 Whisper model, freeze its weights, add codebook classifiers and unfreeze the IA3 weights.
 
     :param model_name: The name of the pre-trained Whisper model to load.
     :param device: The device to put the model on.
@@ -88,7 +88,7 @@ def lr_update(
     lr_step: float,
     decay_factor: float,
 ) -> float:
-    """Implements an InverseSquareRootSchedule as in fairseq.
+    """Implement an InverseSquareRootSchedule as in fairseq.
 
     C.f. https://github.com/facebookresearch/fairseq/blob/main/fairseq/optim/lr_scheduler/inverse_square_root_schedule.py#L32
 
@@ -109,7 +109,7 @@ def lr_update(
 
 
 def upload_to_wandb(use_wandb: bool, path: Path) -> None:
-    """Uploads the weights found at path to wandb.
+    """Upload the weights found at path to wandb.
 
     :param use_wandb: Whether to upload to wandb.
     :param path: The path to the weights to upload.
