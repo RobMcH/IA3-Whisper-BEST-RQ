@@ -109,6 +109,52 @@ class IA3ResidualAttentionBlock(ResidualAttentionBlock):
         )
 
 
+class CodebookClassifiers(torch.nn.Module):
+    """Implement CodebookClassifiers for mapping masked input features to quantized codebook labels."""
+
+    def __init__(
+        self,
+        num_codebooks: int,
+        num_targets: int,
+        n_audio_state: int,
+        device: str,
+        *args,
+        **kwargs,
+    ):
+        """Initialize a number of codebook classifiers for BEST-RQ training of the encoder.
+
+        :param num_codebooks: The number of codebook classifiers to add.
+        :param num_targets: The number of targets (classes) per classifier.
+        :param n_audio_state: The hidden size of audio features within the model.
+        :param device: The device to initialize the classifiers on.
+        """
+        super().__init__(*args, **kwargs)
+        self.codebook_classifiers = nn.ModuleList(
+            [
+                nn.Sequential(
+                    nn.Linear(n_audio_state, num_targets, device=device),
+                )
+                for _ in range(num_codebooks)
+            ]
+        )
+
+    def forward(
+        self, x: torch.Tensor
+    ) -> tuple[torch.Tensor, torch.Tensor] | torch.Tensor:
+        """Compute a forward pass through the codebook classifiers.
+
+        :param x: Tensor holding the mel spectrogram of the audio. Shape = (batch_size, n_mels, n_ctx)
+        :return:
+            x: The input features. Shape: (batch_size, n_ctx // 2, n_state_audio)
+            logits: The logits obtained by applying the codebook classifiers to the encoded features.
+             Shape: (num_codebooks, batch_size, n_ctx // 2, num_targets).
+        """
+        logits = torch.stack(
+            [classifier(x) for classifier in self.codebook_classifiers]
+        )
+        return x, logits
+
+
 class IA3AudioEncoder(AudioEncoder):
     """Implements an IA3-adapted Whisper AudioEncoder with learnable activation rescaling."""
 
@@ -129,7 +175,9 @@ class IA3AudioEncoder(AudioEncoder):
         self.blocks: Iterable[IA3ResidualAttentionBlock] = nn.ModuleList(
             [IA3ResidualAttentionBlock(n_state, n_head) for _ in range(n_layer)]
         )
-        self.codebook_classifiers: nn.ModuleList | None = None
+        self.codebook_classifiers: nn.Identity | CodebookClassifiers = (
+            torch.nn.Identity()
+        )
 
     def add_codebook_classifiers(
         self, num_codebooks: int, num_targets: int, n_audio_state: int, device: str
@@ -150,13 +198,8 @@ class IA3AudioEncoder(AudioEncoder):
                 f"Number of targets must be greater than 0. Got {num_targets}"
             )
 
-        self.codebook_classifiers = nn.ModuleList(
-            [
-                nn.Sequential(
-                    nn.Linear(n_audio_state, num_targets, device=device),
-                )
-                for _ in range(num_codebooks)
-            ]
+        self.codebook_classifiers = CodebookClassifiers(
+            num_codebooks, num_targets, n_audio_state, device
         )
 
     def forward(
@@ -164,7 +207,7 @@ class IA3AudioEncoder(AudioEncoder):
     ) -> tuple[torch.Tensor, torch.Tensor] | torch.Tensor:
         """Compute a forward pass through the encoder.
 
-        If the encoder.codebook_classifiers is not None, additionally computes the logits of the classifiers.
+        If the encoder.codebook_classifiers have been added, additionally computes the logits of the classifiers.
 
         :param x: Tensor holding the mel spectrogram of the audio. Shape = (batch_size, n_mels, n_ctx)
         :return:
@@ -172,7 +215,6 @@ class IA3AudioEncoder(AudioEncoder):
             logits: [Optional] The logits obtained by applying the codebook classifiers to the encoded features.
              Shape: (num_codebooks, batch_size, n_ctx // 2, num_targets).
         """
-        # Original AudioEncoder forward pass.
         x = torch.nn.functional.gelu(self.conv1(x))
         x = torch.nn.functional.gelu(self.conv2(x))
         x = x.permute(0, 2, 1)
@@ -185,13 +227,7 @@ class IA3AudioEncoder(AudioEncoder):
             x = block(x)
 
         x = self.ln_post(x)
-        # BEST-RQ modifications.
-        if self.codebook_classifiers is None:
-            return x
-        logits = torch.stack(
-            [classifier(x) for classifier in self.codebook_classifiers]
-        )
-        return x, logits
+        return self.codebook_classifiers(x)
 
 
 class IA3Whisper(Whisper):
