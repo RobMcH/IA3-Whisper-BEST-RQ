@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import math
 from pathlib import Path
 
 import torch
@@ -51,10 +52,9 @@ class LibriSpeech(torch.utils.data.Dataset):
         audio, sample_rate, text, *_ = self.dataset[item]
         assert sample_rate == 16000
         audio = audio.flatten()
-        # Calculate the number of full padding tokens at the end.
-        padding_tokens = (
-            max(whisper.audio.N_SAMPLES - audio.shape[-1], 0)
-            // whisper.audio.HOP_LENGTH
+        # Calculate the number of tokens with padding at the end.
+        padding_tokens = math.ceil(
+            max(whisper.audio.N_SAMPLES - audio.shape[-1], 0) / whisper.audio.HOP_LENGTH
         )
         audio = whisper.pad_or_trim(audio.flatten())
         mel = whisper.log_mel_spectrogram(audio, device=self.device)
