@@ -69,6 +69,8 @@ def get_dataloader(
 ) -> torch.utils.data.DataLoader:
     """Construct a dataloader for the librispeech dataset.
 
+    Dynamically truncates the padding to the maximum length of any input in the batch (ignoring padding).
+
     :param split: The data split to use.
     :param batch_size: The size of the batches the sampler fetches.
     :param shuffle: Whether to shuffle the data.
@@ -76,4 +78,26 @@ def get_dataloader(
     :return: A dataloader yielding dictionaries of batches.
     """
     dataset = LibriSpeech(split, device)
-    return torch.utils.data.DataLoader(dataset, batch_size=batch_size, shuffle=shuffle)
+
+    def collate_fn(batch: list[dict[str, torch.Tensor]]) -> dict[str, torch.Tensor]:
+        """Collate a list of individual inputs into a batch by adding a batch dimension to all tensors.
+
+        Dynamically truncates the padding to the maximum length of any input in the batch (ignoring padding).
+
+        :param batch: An uncollated (list of dictionaries of tensors) batch obtained by Pytorch.
+        :return: A collated (dictionary of tensors with batch dimensions) batch.
+        """
+        collated = torch.utils.data.default_collate(batch)
+        # Calculate maximum signal length in the inputs.
+        max_length = (
+            collated["padding_mask"].to(torch.uint8).argmin(dim=1).max().cpu().item()
+        )
+        # Round to nearest multiple of 2 to avoid issues with temporal reduction.
+        max_length = int(2 * round(max_length / 2))
+        collated["padding_mask"] = collated["padding_mask"][..., :max_length]
+        collated["in_feats"] = collated["in_feats"][..., :max_length]
+        return collated
+
+    return torch.utils.data.DataLoader(
+        dataset, batch_size=batch_size, shuffle=shuffle, collate_fn=collate_fn
+    )

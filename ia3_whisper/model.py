@@ -172,7 +172,20 @@ class IA3AudioEncoder(AudioEncoder):
             logits: [Optional] The logits obtained by applying the codebook classifiers to the encoded features.
              Shape: (num_codebooks, batch_size, n_ctx // 2, num_targets).
         """
-        x = super().forward(x)
+        # Original AudioEncoder forward pass.
+        x = torch.nn.functional.gelu(self.conv1(x))
+        x = torch.nn.functional.gelu(self.conv2(x))
+        x = x.permute(0, 2, 1)
+
+        n_ctx = x.shape[1]
+        # Add positional embeddings; truncated to x's context length.
+        x = (x + self.positional_embedding[:n_ctx]).to(x.dtype)
+
+        for block in self.blocks:
+            x = block(x)
+
+        x = self.ln_post(x)
+        # BEST-RQ modifications.
         if self.codebook_classifiers is None:
             return x
         logits = torch.stack(
