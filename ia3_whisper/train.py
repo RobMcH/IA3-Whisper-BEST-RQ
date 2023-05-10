@@ -78,6 +78,11 @@ def parse_args() -> argparse.Namespace:
         default=2,
         help="The fold of temporal downsampling performed by the encoder.",
     )
+    parser.add_argument(
+        "--use_norm",
+        action="store_true",
+        help="Whether to normalize features to 0 mean and 1 std before projecting them. Can cause NaNs.",
+    )
     # Optimizer/training hyper-parameters.
     parser.add_argument(
         "--batch_size",
@@ -270,6 +275,7 @@ def main():
         temporal_reduction=args.temporal_reduction,
         device=args.device,
         seed=args.seed,
+        use_norm=args.use_norm,
     )
     use_wandb = os.environ.get("WANDB_API_KEY") is not None
     if use_wandb:

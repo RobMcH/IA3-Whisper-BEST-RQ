@@ -25,6 +25,7 @@ class BestRQMasking:
         temporal_reduction: int = 2,
         device: str = "cpu",
         seed: int = 0,
+        use_norm: bool = False,
         metric: int = faiss.METRIC_INNER_PRODUCT,
     ) -> None:
         """Implement the Best-RQ masking strategy. Allow for both original Best-RQ and Google USM-style.
@@ -39,6 +40,7 @@ class BestRQMasking:
          downsampled along the temporal axis when passing through the encoder.
         :param device: The device to initialize parameters on. Defaults to "CPU".
         :param seed: The seed used to initialize the RNG.
+        :param use_norm: Whether to normalize the input features to mean 0 and std 1 before projecting.
         :param metric: The metric type to use for the inner product search. Defaults to inner product search, which
          is equivalent to cosine similarity as inputs are normalized.
           C.f. https://github.com/facebookresearch/faiss/blob/main/faiss/MetricType.h.
@@ -59,6 +61,16 @@ class BestRQMasking:
         )  # Shape: (emb_dim, codebook_dim)
         # nn.init does not support custom RNGs, use default.
         torch.nn.init.xavier_normal_(self.projection)
+
+        # Set up input normalization. Disable elementwise_affine to avoid learning LN parameters.
+        self.norm = (
+            torch.nn.LayerNorm(
+                normalized_shape=emb_dim * self.temporal_reduction,
+                elementwise_affine=False,
+            )
+            if use_norm
+            else torch.nn.Identity()
+        )
 
         # Set up codebooks.
         self.num_codebooks = num_codebooks
@@ -147,6 +159,9 @@ class BestRQMasking:
         in_feats = in_feats.reshape(
             num_masked // 2, -1
         )  # Shape: (num_masked // self.temporal_reduction, emb_dim * self.temporal_reduction)
+        in_feats = self.norm(
+            in_feats
+        )  # Shape: (num_masked // self.temporal_reduction, emb_dim * self.temporal_reduction)
         proj_feats = (
             in_feats @ self.projection
         )  # Shape: (num_masked // self.temporal_reduction, codebook_dim)
@@ -198,7 +213,7 @@ class BestRQMasking:
         # Update mask with the sampled spans.
         mask[batch_span_indices, seq_span_indices] = True
         # Remove padding tokens from mask.
-        mask[padding_mask] = False
+        mask[~padding_mask] = False
         return mask
 
     def apply_mask(
