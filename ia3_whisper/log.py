@@ -42,6 +42,7 @@ def log_metrics(
     use_wandb: bool,
     logger: logging.Logger,
     log_every: int = 1,
+    loss_key: str = "loss",
 ) -> None:
     """Log the given metrics using the logger as well as wandb.
 
@@ -54,6 +55,7 @@ def log_metrics(
     :param use_wandb: Whether to log the metrics to wandb.
     :param logger: The logger to use for logging.
     :param log_every: Log only every log_every^th batch.
+    :param loss_key: The key in the metrics corresponding to the loss.
     """
     if use_wandb:
         wandb.log(metrics)
@@ -62,7 +64,7 @@ def log_metrics(
             "Epoch %d - Batch %d - Loss %.5f - #Unique targets %d / %d",
             epoch,
             batch_idx,
-            metrics.get("loss", -1.0),
+            metrics.get(loss_key, -1.0),
             metrics.get("unique_targets", -1.0),
             metrics.get("targets", -1.0),
         )

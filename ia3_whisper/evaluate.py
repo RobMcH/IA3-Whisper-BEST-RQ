@@ -42,7 +42,14 @@ def evaluate(
             loss = evaluate_step(batch, model.encoder)
         validation_loss += loss
     validation_loss /= float(len(dataloader.dataset))  # type: ignore
-    log_metrics(0, 0, {"loss": validation_loss}, use_wandb, logger)
+    log_metrics(
+        0,
+        0,
+        {"validation_loss": validation_loss},
+        use_wandb,
+        logger,
+        loss_key="validation_loss",
+    )
     return validation_loss
 
 
