@@ -5,9 +5,10 @@ from __future__ import annotations
 
 from collections import OrderedDict
 from pathlib import Path
-from typing import Generator, Iterable
+from typing import Generator
 
 import torch
+import whisper.model
 from torch import nn
 from whisper.model import (
     AudioEncoder,
@@ -170,7 +171,7 @@ class IA3AudioEncoder(AudioEncoder):
         super().__init__(
             n_mels=n_mels, n_ctx=n_ctx, n_state=n_state, n_head=n_head, n_layer=n_layer
         )
-        self.blocks: Iterable[IA3ResidualAttentionBlock] = nn.ModuleList(
+        self.blocks = nn.ModuleList(
             [IA3ResidualAttentionBlock(n_state, n_head) for _ in range(n_layer)]
         )
         self.codebook_classifiers: nn.Identity | CodebookClassifiers = (
@@ -228,8 +229,32 @@ class IA3AudioEncoder(AudioEncoder):
         return self.codebook_classifiers(x)
 
 
+class IA3TextDecoder(whisper.model.TextDecoder):
+    """Implements an (IA)^3-adapted TextDecoder with learnable activation rescaling."""
+
+    def __init__(
+        self, n_vocab: int, n_ctx: int, n_state: int, n_head: int, n_layer: int
+    ):
+        """Initialize an (IA)^3-adapted TextDecoder implementation.
+
+        :param n_vocab: The size of the covabulary.
+        :param n_ctx: The maximum sequence length.
+        :param n_state: The hidden feature size.
+        :param n_head: The number of attention heads.
+        :param n_layer: The number of decoder layers.
+        """
+        super().__init__(n_vocab, n_ctx, n_state, n_head, n_layer)
+
+        self.blocks = nn.ModuleList(
+            [
+                IA3ResidualAttentionBlock(n_state, n_head, cross_attention=True)
+                for _ in range(n_layer)
+            ]
+        )
+
+
 class IA3Whisper(Whisper):
-    """Implements an IA3-adapted Whisper model with IA3-weights injected into the encoder stack."""
+    """Implements an IA3-adapted Whisper model with IA3-weights injected into the encoder and decoder stacks."""
 
     def __init__(self, dims: ModelDimensions) -> None:
         """Initialize an (IA)^3-adapted Whisper implementation.
@@ -243,6 +268,13 @@ class IA3Whisper(Whisper):
             self.dims.n_audio_state,
             self.dims.n_audio_head,
             self.dims.n_audio_layer,
+        )
+        self.decoder = IA3TextDecoder(
+            self.dims.n_vocab,
+            self.dims.n_text_ctx,
+            self.dims.n_text_state,
+            self.dims.n_text_head,
+            self.dims.n_text_layer,
         )
 
     def freeze(self) -> None:
