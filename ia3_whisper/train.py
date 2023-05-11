@@ -9,6 +9,7 @@ from pathlib import Path
 
 import torch.cuda
 import wandb
+from torch.cuda.amp import GradScaler
 from whisper import _MODELS
 
 from ia3_whisper.dataset import get_dataloader
@@ -17,6 +18,7 @@ from ia3_whisper.masking import BestRQMasking
 from ia3_whisper.model import IA3AudioEncoder, IA3Whisper
 from ia3_whisper.utils import (
     compute_cross_entropy_loss,
+    get_compute_dtype,
     get_ia3_model,
     get_optimizer,
     set_seed,
@@ -117,11 +119,16 @@ def parse_args() -> argparse.Namespace:
         default=0,
         help="The random seed to use for all random number generators.",
     )
-    # Compute device.
+    # Compute settings.
     parser.add_argument(
         "--device",
         type=str,
         default="cuda" if torch.cuda.is_available() else "cpu",
+    )
+    parser.add_argument(
+        "--use_mixed_precision",
+        action="store_true",
+        help="Whether to use automatic mixed precision for training.",
     )
     return parser.parse_args()
 
@@ -138,6 +145,7 @@ def train(
     use_wandb: bool,
     output_path: Path,
     train_dataset: str,
+    use_mixed_precision: bool,
 ) -> None:
     """Run BEST-RQ training on the encoder of the given IA3Whisper model.
 
@@ -152,13 +160,26 @@ def train(
     :param use_wandb: Whether to log metrics to wandb.
     :param output_path: The output path where to store the trained IA3 weights.
     :param train_dataset: Which LibriSpeech data split to use for training.
+    :param use_mixed_precision: Whether to enable mixed precision training.
     """
     dataloader = get_dataloader(train_dataset, batch_size, True, device)
+    dtype = get_compute_dtype(use_mixed_precision)
+    scaler = GradScaler(enabled=use_mixed_precision)
+
     for epoch in range(1, num_epochs + 1):
         for i, batch in enumerate(dataloader):
-            loss, metrics = train_step(batch, model.encoder, best_rq)
-            metrics["lr"] = lr_scheduler.get_last_lr()[0]
-            update_weights(i, accumulate_gradients, loss, optimizer, lr_scheduler)
+            batch = best_rq.get_targets_and_features(batch)
+            with torch.autocast(device_type=device, dtype=dtype):
+                loss = train_step(batch, model.encoder)
+            metrics = {
+                "lr": lr_scheduler.get_last_lr()[0],
+                "loss": loss.cpu().item(),
+                "unique_targets": batch["targets"].unique().nelement(),
+                "targets": batch["targets"].nelement(),
+            }
+            update_weights(
+                i, accumulate_gradients, loss, optimizer, lr_scheduler, scaler
+            )
             log_metrics(i, epoch, metrics, use_wandb)
         # Store epoch IA3 weights and upload to wandb.
         path = Path(f"{output_path}_epoch_{epoch}").with_suffix(".pt")
@@ -174,29 +195,18 @@ def train(
 def train_step(
     batch: dict[str, torch.Tensor],
     model: IA3AudioEncoder,
-    best_rq: BestRQMasking,
-) -> tuple[torch.Tensor, dict]:
+) -> torch.Tensor:
     """Perform one BEST-RQ training step.
 
-    :param batch: A dictionary holding the batch. Must have key 'in_feats'.
+    :param batch: A dictionary holding the batch. Must have keys 'in_feats' and 'targets'.
     :param model: The model to use for the forward pass.
-    :param best_rq: A BestRQMasking object to obtain the masked features and targets.
-    :return: A tuple containing:
-        * loss: The computed loss tensor.
-        * metrics: A dictionary holding a float representation of the loss ('loss'), the number of unique targets in
-         the batch ('unique_targets'), and the number of total targets in the batch ('targets').
+    :return: The computed loss tensor.
     """
-    batch = best_rq.get_targets_and_features(batch)
     _, logits = model(batch["in_feats"])
-    logits = logits[:, batch["mask"]]
+    # Cast logits to full precision.
+    logits = logits[:, batch["mask"]].float()
     loss = compute_cross_entropy_loss(logits, batch["targets"])
-
-    unique_targets = batch["targets"].unique().nelement()
-    return loss, {
-        "loss": loss.cpu().item(),
-        "unique_targets": unique_targets,
-        "targets": batch["targets"].nelement(),
-    }
+    return loss
 
 
 def update_weights(
@@ -205,6 +215,7 @@ def update_weights(
     loss: torch.Tensor,
     optimizer: torch.optim.Optimizer,
     lr_scheduler: torch.optim.lr_scheduler.LambdaLR,
+    scaler: GradScaler,
 ) -> None:
     """Update the model weights attached to the given optimizer.
 
@@ -215,15 +226,17 @@ def update_weights(
     :param loss: The computed loss.
     :param optimizer: The optimizer to perform the weight update with.
     :param lr_scheduler: An LR scheduler; updates the learning rate every accumulate_gradients steps.
+    :param scaler: The gradient scaler for mixed precision training. Performs unscaled update in full precision.
     """
     loss = loss / accumulate_gradients
-    loss.backward()
+    scaler.scale(loss).backward()
     if (batch_idx + 1) % accumulate_gradients == 0:
         logger.debug(
             "Updating weights after accumulating gradients over %d batches.",
             accumulate_gradients,
         )
-        optimizer.step()
+        scaler.step(optimizer)
+        scaler.update()
         lr_scheduler.step()
         optimizer.zero_grad()
 
@@ -293,6 +306,7 @@ def main():
         use_wandb,
         output_path,
         args.train_dataset,
+        args.use_mixed_precision,
     )
     wandb.finish()
 

@@ -144,3 +144,16 @@ def set_seed(seed: int) -> None:
     torch.manual_seed(seed)
     np.random.seed(seed)
     random.seed(seed)
+
+
+def get_compute_dtype(use_mixed_precision: bool) -> torch.dtype:
+    """Get the compute dtype depending on whether to use mixed precision and the underlying hardware.
+
+    :param use_mixed_precision: Whether to use half precision compute dtypes.
+    :return: A torch.dtype.
+    """
+    if not use_mixed_precision:
+        return torch.get_default_dtype()
+    if torch.cuda.is_bf16_supported():
+        return torch.bfloat16
+    return torch.float16
