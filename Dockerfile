@@ -1,4 +1,4 @@
-FROM mambaorg/micromamba:1.3.1 as mamba
+FROM mambaorg/micromamba:1.4.2 as mamba
 
 USER root
 SHELL ["/bin/bash", "-c"]
