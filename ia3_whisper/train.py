@@ -177,8 +177,15 @@ def train(
                 "unique_targets": batch["targets"].unique().nelement(),
                 "targets": batch["targets"].nelement(),
             }
+            # Allows to properly accumulate batches over different epochs.
+            global_batch_num = (epoch - 1) * len(dataloader) + i
             update_weights(
-                i, accumulate_gradients, loss, optimizer, lr_scheduler, scaler
+                global_batch_num,
+                accumulate_gradients,
+                loss,
+                optimizer,
+                lr_scheduler,
+                scaler,
             )
             log_metrics(i, epoch, metrics, use_wandb)
         # Store epoch IA3 weights and upload to wandb.
