@@ -108,8 +108,8 @@ class IA3ResidualAttentionBlock(ResidualAttentionBlock):
         )
 
 
-class CodebookClassifiers(torch.nn.Module):
-    """Implement CodebookClassifiers for mapping masked input features to quantized codebook labels."""
+class CodebookClassifier(torch.nn.Module):
+    """Implement the CodebookClassifier for mapping masked input features to quantized codebook labels."""
 
     def __init__(
         self,
@@ -128,29 +128,34 @@ class CodebookClassifiers(torch.nn.Module):
         :param device: The device to initialize the classifiers on.
         """
         super().__init__(*args, **kwargs)
-        self.codebook_classifiers = nn.ModuleList(
-            [
-                nn.Sequential(
-                    nn.Linear(n_audio_state, num_targets, device=device),
-                )
-                for _ in range(num_codebooks)
-            ]
+        self.codebook_classifier = torch.nn.Linear(
+            n_audio_state, num_targets * num_codebooks, device=device
         )
+        self.num_codebooks = num_codebooks
+        self.num_targets = num_targets
 
     def forward(
-        self, x: torch.Tensor
+        self,
+        x: torch.Tensor,
+        target_mask: torch.Tensor,
     ) -> tuple[torch.Tensor, torch.Tensor] | torch.Tensor:
         """Compute a forward pass through the codebook classifiers.
 
-        :param x: Tensor holding the mel spectrogram of the audio. Shape = (batch_size, n_mels, n_ctx)
+        :param x: Tensor holding the mel spectrogram of the audio. Shape = (batch_size, n_ctx, n_state_audio)
+        :param target_mask: Tensor holding a mask to extract the target tokens.
         :return:
-            x: The input features. Shape: (batch_size, n_ctx // 2, n_state_audio)
+            x: The input features. Shape: (batch_size, n_ctx, n_state_audio)
             logits: The logits obtained by applying the codebook classifiers to the encoded features.
-             Shape: (num_codebooks, batch_size, n_ctx // 2, num_targets).
+             Shape: (num_codebooks, num_masked, num_targets).
         """
-        logits = torch.stack(
-            [classifier(x) for classifier in self.codebook_classifiers]
+        x_inp = x[target_mask]  # Shape: (num_masked, n_state_audio)
+        num_masked = x_inp.shape[0]
+        logits = self.codebook_classifier(x_inp).reshape(
+            num_masked, self.num_codebooks, self.num_targets
         )
+        logits = logits.permute(
+            1, 0, 2
+        )  # Shape: (num_codebooks, num_masked, num_targets).
         return x, logits
 
 
@@ -174,9 +179,7 @@ class IA3AudioEncoder(AudioEncoder):
         self.blocks = nn.ModuleList(
             [IA3ResidualAttentionBlock(n_state, n_head) for _ in range(n_layer)]
         )
-        self.codebook_classifiers: nn.Identity | CodebookClassifiers = (
-            torch.nn.Identity()
-        )
+        self.codebook_classifiers: None | CodebookClassifier = None
 
     def add_codebook_classifiers(
         self, num_codebooks: int, num_targets: int, n_audio_state: int, device: str
@@ -197,22 +200,25 @@ class IA3AudioEncoder(AudioEncoder):
                 f"Number of targets must be greater than 0. Got {num_targets}"
             )
 
-        self.codebook_classifiers = CodebookClassifiers(
+        self.codebook_classifiers = CodebookClassifier(
             num_codebooks, num_targets, n_audio_state, device
         )
 
     def forward(
-        self, x: torch.Tensor
+        self,
+        x: torch.Tensor,
+        target_mask: torch.Tensor | None = None,
     ) -> tuple[torch.Tensor, torch.Tensor] | torch.Tensor:
         """Compute a forward pass through the encoder.
 
         If the encoder.codebook_classifiers have been added, additionally computes the logits of the classifiers.
 
         :param x: Tensor holding the mel spectrogram of the audio. Shape = (batch_size, n_mels, n_ctx)
+        :param target_mask: An optional target mask for BEST-RQ training to select the target tokens.
         :return:
-            x: The computed encoded features. Shape: (batch_size, n_ctx // 2, n_state_audio)
+            x: The computed encoded features. Shape: (batch_size, n_ctx, n_state_audio)
             logits: [Optional] The logits obtained by applying the codebook classifiers to the encoded features.
-             Shape: (num_codebooks, batch_size, n_ctx // 2, num_targets).
+             Shape: (num_codebooks, batch_size, n_ctx, num_targets).
         """
         x = torch.nn.functional.gelu(self.conv1(x))
         x = torch.nn.functional.gelu(self.conv2(x))
@@ -226,7 +232,11 @@ class IA3AudioEncoder(AudioEncoder):
             x = block(x)
 
         x = self.ln_post(x)
-        return self.codebook_classifiers(x)
+        return (
+            x
+            if self.codebook_classifiers is None
+            else self.codebook_classifiers(x, target_mask)
+        )
 
 
 class IA3TextDecoder(whisper.model.TextDecoder):

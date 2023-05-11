@@ -216,9 +216,9 @@ def train_step(
     :param model: The model to use for the forward pass.
     :return: The computed loss tensor.
     """
-    _, logits = model(batch["in_feats"])
+    _, logits = model(batch["in_feats"], batch["mask"])
     # Cast logits to full precision.
-    logits = logits[:, batch["mask"]].float()
+    logits = logits.float()
     loss = compute_cross_entropy_loss(logits, batch["targets"])
     return loss
 
