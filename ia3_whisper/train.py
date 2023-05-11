@@ -13,7 +13,8 @@ from torch.cuda.amp import GradScaler
 from whisper import _MODELS
 
 from ia3_whisper.dataset import get_dataloader
-from ia3_whisper.log import get_logger
+from ia3_whisper.evaluate import evaluate
+from ia3_whisper.log import get_logger, log_metrics
 from ia3_whisper.masking import BestRQMasking
 from ia3_whisper.model import IA3AudioEncoder, IA3Whisper
 from ia3_whisper.utils import (
@@ -130,6 +131,12 @@ def parse_args() -> argparse.Namespace:
         action="store_true",
         help="Whether to use automatic mixed precision for training.",
     )
+    # Validation settings.
+    parser.add_argument(
+        "--validation_dataset",
+        type=str,
+        default="dev-clean",
+    )
     return parser.parse_args()
 
 
@@ -165,7 +172,7 @@ def train(
     dataloader = get_dataloader(train_dataset, batch_size, True, device)
     dtype = get_compute_dtype(use_mixed_precision)
     scaler = GradScaler(enabled=use_mixed_precision)
-
+    model.train()
     for epoch in range(1, num_epochs + 1):
         for i, batch in enumerate(dataloader):
             batch = best_rq.get_targets_and_features(batch)
@@ -187,7 +194,7 @@ def train(
                 lr_scheduler,
                 scaler,
             )
-            log_metrics(i, epoch, metrics, use_wandb)
+            log_metrics(i, epoch, metrics, use_wandb, logger, log_every=50)
         # Store epoch IA3 weights and upload to wandb.
         path = Path(f"{output_path}_epoch_{epoch}").with_suffix(".pt")
         model.save_ia3_encoder(path)
@@ -248,30 +255,6 @@ def update_weights(
         optimizer.zero_grad()
 
 
-def log_metrics(batch_idx: int, epoch: int, metrics: dict, use_wandb: bool) -> None:
-    """Log the given metrics using the logger as well as wandb.
-
-    Only logs using the logger every 50 batches to not pollute the logs.
-
-    :param batch_idx: The index of the batch within the epoch.
-    :param epoch: The epoch of the training.
-    :param metrics: A dictionary holding the metrics to log. Keys 'loss', 'unique_targets' and 'targets' will be
-     logged using the logger. Uses -1.0 as a default value when a key is not present.
-    :param use_wandb: Whether to log the metrics to wandb.
-    """
-    if use_wandb:
-        wandb.log(metrics)
-    if batch_idx % 50 == 1:
-        logger.info(
-            "Epoch %d - Batch %d - Loss %.5f - #Unique targets %d / %d",
-            epoch,
-            batch_idx,
-            metrics.get("loss", -1.0),
-            metrics.get("unique_targets", -1.0),
-            metrics.get("targets", -1.0),
-        )
-
-
 def main():
     """Train a Whisper checkpoint using IA3 and BEST-RQ."""
     args = parse_args()
@@ -301,6 +284,7 @@ def main():
     if use_wandb:
         wandb.init(project="ia3whisper", config=vars(args))
     output_path = Path(f"{args.model_name}_IA3_{int(time.time())}")
+    # Train model.
     train(
         model,
         best_rq,
@@ -315,6 +299,17 @@ def main():
         args.train_dataset,
         args.use_mixed_precision,
     )
+    # Evaluate model.
+    if args.validation_dataset.strip():
+        evaluate(
+            model,
+            best_rq,
+            args.batch_size,
+            args.device,
+            use_wandb,
+            args.validation_dataset,
+            args.use_mixed_precision,
+        )
     wandb.finish()
 
 

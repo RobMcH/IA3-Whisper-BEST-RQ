@@ -4,6 +4,8 @@ import logging
 import os
 import sys
 
+import wandb
+
 
 def get_logger(name: str) -> logging.Logger:
     """Configure a console logger.
@@ -31,3 +33,36 @@ def get_logger(name: str) -> logging.Logger:
     console_handler.setFormatter(console_formatter)
     logger.addHandler(console_handler)
     return logger
+
+
+def log_metrics(
+    batch_idx: int,
+    epoch: int,
+    metrics: dict,
+    use_wandb: bool,
+    logger: logging.Logger,
+    log_every: int = 1,
+) -> None:
+    """Log the given metrics using the logger as well as wandb.
+
+    Only logs using the logger every log_every^th batch to not pollute the logs.
+
+    :param batch_idx: The index of the batch within the epoch.
+    :param epoch: The epoch of the training.
+    :param metrics: A dictionary holding the metrics to log. Keys 'loss', 'unique_targets' and 'targets' will be
+     logged using the logger. Uses -1.0 as a default value when a key is not present.
+    :param use_wandb: Whether to log the metrics to wandb.
+    :param logger: The logger to use for logging.
+    :param log_every: Log only every log_every^th batch.
+    """
+    if use_wandb:
+        wandb.log(metrics)
+    if (batch_idx + 1) % log_every == 0:
+        logger.info(
+            "Epoch %d - Batch %d - Loss %.5f - #Unique targets %d / %d",
+            epoch,
+            batch_idx,
+            metrics.get("loss", -1.0),
+            metrics.get("unique_targets", -1.0),
+            metrics.get("targets", -1.0),
+        )

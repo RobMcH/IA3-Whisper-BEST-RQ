@@ -66,7 +66,7 @@ class LibriSpeech(torch.utils.data.Dataset):
 
 def get_dataloader(
     split: str, batch_size: int, shuffle: bool, device: str = "cpu"
-) -> torch.utils.data.DataLoader:
+) -> torch.utils.data.DataLoader[LibriSpeech]:
     """Construct a dataloader for the librispeech dataset.
 
     Dynamically truncates the padding to the maximum length of any input in the batch (ignoring padding).
