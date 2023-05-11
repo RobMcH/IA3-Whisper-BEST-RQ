@@ -50,7 +50,7 @@ def get_ia3_model(
     model = load_model(model_name, device)
     model.freeze()
     model.add_codebook_classifiers(num_codebooks, num_targets)
-    model.unfreeze_encoder_ia3()
+    model.unfreeze_ia3()
     return model
 
 

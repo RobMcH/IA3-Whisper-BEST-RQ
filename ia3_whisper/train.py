@@ -197,12 +197,12 @@ def train(
             log_metrics(i, epoch, metrics, use_wandb, logger, log_every=50)
         # Store epoch IA3 weights and upload to wandb.
         path = Path(f"{output_path}_epoch_{epoch}").with_suffix(".pt")
-        model.save_ia3_encoder(path)
+        model.save_ia3_state_dict(path)
         upload_to_wandb(use_wandb, path)
     # Store final IA3 weights and upload to wandb.
     output_path = output_path.with_suffix(".pt")
     logger.info("Saving trained IA3 weights to %s.", str(output_path))
-    model.save_ia3_encoder(output_path)
+    model.save_ia3_state_dict(output_path)
     upload_to_wandb(use_wandb, output_path)
 
 
