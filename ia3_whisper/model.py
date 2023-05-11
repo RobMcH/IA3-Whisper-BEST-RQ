@@ -32,9 +32,9 @@ class IA3MultiHeadAttention(MultiHeadAttention):
         :param n_head: The number of attention heads.
         """
         super().__init__(n_state=n_state, n_head=n_head)
-        # Initialise parameters with zeros -> (IA)^3 will perform identity.
-        self.key_weights = nn.Parameter(torch.zeros((n_state,)))
-        self.value_weights = nn.Parameter(torch.zeros((n_state,)))
+        # Initialise parameters such that (IA)^3 will perform identity.
+        self.key_weights = nn.Parameter(torch.ones((n_state,)))
+        self.value_weights = nn.Parameter(torch.ones((n_state,)))
         self.key_biases = nn.Parameter(torch.zeros((n_state,)))
         self.value_biases = nn.Parameter(torch.zeros((n_state,)))
 
@@ -54,8 +54,8 @@ class IA3MultiHeadAttention(MultiHeadAttention):
         :return: The attention-weighted value vectors. Shape: (batch_size, n_mels, n_ctx)
         """
         # (IA)^3 changes
-        k = k + (self.key_weights * k).to(k.dtype) + self.key_biases.to(k.dtype)
-        v = v + (self.value_weights * v).to(v.dtype) + self.value_biases.to(v.dtype)
+        k = (self.key_weights * k).to(k.dtype) + self.key_biases.to(k.dtype)
+        v = (self.value_weights * v).to(v.dtype) + self.value_biases.to(v.dtype)
         return super().qkv_attention(q, k, v, mask)
 
 
@@ -68,7 +68,7 @@ class IA3MLPRescaling(nn.Module):
         :param n_state: The hidden dimension of the network.
         """
         super().__init__(*args, **kwargs)
-        self.mlp_weights = nn.Parameter(torch.zeros((n_state,)))
+        self.mlp_weights = nn.Parameter(torch.ones((n_state,)))
         self.mlp_biases = nn.Parameter(torch.zeros((n_state,)))
 
     def forward(self, feats_in: torch.Tensor) -> torch.Tensor:
@@ -78,10 +78,8 @@ class IA3MLPRescaling(nn.Module):
 
         :return: The computed output tensor.
         """
-        return (
-            feats_in
-            + (self.mlp_weights * feats_in).to(feats_in.dtype)
-            + self.mlp_biases.to(feats_in.dtype)
+        return (self.mlp_weights * feats_in).to(feats_in.dtype) + self.mlp_biases.to(
+            feats_in.dtype
         )
 
 
