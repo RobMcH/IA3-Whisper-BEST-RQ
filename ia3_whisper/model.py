@@ -48,11 +48,11 @@ class IA3MultiHeadAttention(MultiHeadAttention):
     ) -> torch.Tensor:
         """Calculate (IA)^3-adapted QKV attention with learned activation scaling.
 
-        :param q: A tensor holding the queries. Shape: (batch_size, n_mels, n_ctx)
-        :param k: A tensor holding the keys. Shape: (batch_size, n_mels, n_ctx)
-        :param v: A tensor holding the values. Shape: (batch_size, n_mels, n_ctx)
+        :param q: A tensor holding the queries. Shape: (batch_size, n_ctx, n_state_audio)
+        :param k: A tensor holding the keys. Shape: (batch_size, n_ctx, n_state_audio)
+        :param v: A tensor holding the values. Shape: (batch_size, n_ctx, n_state_audio)
         :param mask: [Optional] A tensor holding a mask for the attention calculation.
-        :return: The attention-weighted value vectors. Shape: (batch_size, n_mels, n_ctx)
+        :return: The attention-weighted value vectors. Shape: (batch_size, n_ctx, n_state_audio)
         """
         # (IA)^3 changes
         k = (self.key_weights * k).to(k.dtype) + self.key_biases.to(k.dtype)
@@ -75,7 +75,7 @@ class IA3MLPRescaling(nn.Module):
     def forward(self, feats_in: torch.Tensor) -> torch.Tensor:
         """Compute a forward pass through the IA3 rescaled MLP.
 
-        :param feats_in: The input features of the network.
+        :param feats_in: The input features of the network. Shape: (batch_size, n_ctx, n_state_audio)
 
         :return: The computed output tensor.
         """
@@ -218,7 +218,7 @@ class IA3AudioEncoder(AudioEncoder):
         :return:
             x: The computed encoded features. Shape: (batch_size, n_ctx, n_state_audio)
             logits: [Optional] The logits obtained by applying the codebook classifiers to the encoded features.
-             Shape: (num_codebooks, batch_size, n_ctx, num_targets).
+             Shape: (num_codebooks, num_masked, num_targets).
         """
         x = torch.nn.functional.gelu(self.conv1(x))
         x = torch.nn.functional.gelu(self.conv2(x))
@@ -247,7 +247,7 @@ class IA3TextDecoder(whisper.model.TextDecoder):
     ):
         """Initialize an (IA)^3-adapted TextDecoder implementation.
 
-        :param n_vocab: The size of the covabulary.
+        :param n_vocab: The size of the vocabulary.
         :param n_ctx: The maximum sequence length.
         :param n_state: The hidden feature size.
         :param n_head: The number of attention heads.
