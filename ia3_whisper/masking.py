@@ -183,7 +183,9 @@ class BestRQMasking:
                 else codebook_targets
             )  # Shape: (num_masked // self.temporal_reduction)
             targets.append(codebook_targets)
-        return torch.stack(targets)  # Shape: (self.num_codebooks, num_masked // 2)
+        return torch.stack(
+            targets
+        )  # Shape: (self.num_codebooks, num_masked // self.temporal_reduction)
 
     def get_mask(
         self, in_feats_shape: torch.Size, padding_mask: torch.Tensor
