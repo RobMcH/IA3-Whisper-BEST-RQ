@@ -28,6 +28,12 @@ trainable parameters, checkpoints are (individually) negligible in space require
 The Dockerfile contains a micromamba installation, so further libraries/requirements can easily be installed on the fly.
 As a GPU is highly recommended for running the training, the image is only tested on a machine with an installed GPU.
 
+Alternatively, the environment can be directly installed using an existing conda (or mamba/micromamba) installation on
+a unix system using
+```bash
+conda create -y --file environment.yaml
+```
+
 ## Training
 
 IA^3-based training of a (pretrained) Whisper model using BEST-RQ can be launched using the `train` command within a
