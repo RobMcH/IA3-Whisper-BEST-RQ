@@ -27,13 +27,11 @@ def compute_cross_entropy_loss(
             f"Logits and targets need to have matching shapes in the leading dimensions."
             f" Got logits: {logits.shape} and target: {target.shape}."
         )
-    num_codebooks = logits.shape[0]
-    loss = torch.tensor(0.0, device=logits.device)
-    for codebook in range(num_codebooks):
-        loss += torch.nn.functional.cross_entropy(
-            input=logits[codebook], target=target[codebook]
-        )
-    return loss / num_codebooks
+    num_targets = logits.shape[-1]
+    loss = torch.nn.functional.cross_entropy(
+        input=logits.reshape(-1, num_targets), target=target.reshape(-1)
+    )
+    return loss
 
 
 def get_ia3_model(
