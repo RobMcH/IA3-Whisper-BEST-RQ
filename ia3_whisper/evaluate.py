@@ -33,7 +33,9 @@ def evaluate(
     :return: The computed validation loss.
     """
     logger.info("Evaluating model on %s", validation_dataset)
-    dataloader = get_dataloader(validation_dataset, batch_size, False, device)
+    dataloader = get_dataloader(
+        validation_dataset, batch_size, False, device, truncate=False
+    )
     dtype: torch.dtype = get_compute_dtype(use_mixed_precision)
     validation_loss = 0.0
     for batch in dataloader:
