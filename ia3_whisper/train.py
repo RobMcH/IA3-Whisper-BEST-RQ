@@ -169,7 +169,7 @@ def train(
     :param train_dataset: Which LibriSpeech data split to use for training.
     :param use_mixed_precision: Whether to enable mixed precision training.
     """
-    dataloader = get_dataloader(train_dataset, batch_size, True, device)
+    dataloader = get_dataloader(train_dataset, batch_size, True, device, truncate=True)
     dtype = get_compute_dtype(use_mixed_precision)
     scaler = GradScaler(enabled=use_mixed_precision)
     model.train()
